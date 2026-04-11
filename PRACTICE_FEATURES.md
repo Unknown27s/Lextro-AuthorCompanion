@@ -123,7 +123,7 @@ File: `scripts/build-capacitor.sh`
 File: `frontend/capacitor.config.ts`
 
 ```typescript
-- App ID: com.authorcompanion.app
+- App ID: com.lextro.app
 - App Name: Author Vocabulary Companion
 - Web Directory: dist
 - Supported Plugins: PushNotifications, SplashScreen

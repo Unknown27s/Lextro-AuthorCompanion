@@ -1,0 +1,103 @@
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+/.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+frontend/dist/
+frontend/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Capacitor
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/**/build/
+frontend/ios/Pods/
+frontend/ios/Podfile.lock
+frontend/capacitor.config.local.ts
+
+# Cache
+.cache/
+frontend/.cache/
+node_modules/.cache/
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Vite
+frontend/.vite/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+
+# Lock files (optional - uncomment to commit lock files)
+# package-lock.json
+# yarn.lock
+
+# IDE settings
+*.sublime-project
+*.sublime-workspace
+
+# Git
+.git/
+.gitmodules
+
+# CI/CD
+.github/workflows/*.local.yml
+
+# Android
+frontend/android/gradlew
+frontend/android/gradlew.bat
+frontend/android/.idea/
+frontend/android/app/debug/
+frontend/android/app/release/
+
+# iOS
+frontend/ios/.swiftpm/
+frontend/ios/xcuserdata/
+frontend/ios/*.xcworkspace/xcuserdata/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/

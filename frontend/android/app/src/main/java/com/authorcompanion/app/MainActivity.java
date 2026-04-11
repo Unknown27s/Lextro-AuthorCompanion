@@ -1,4 +1,4 @@
-package com.authorcompanion.app;
+package com.lextro.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authService } from '../services/authService';
 import { localStorageApi } from '../api/client';
+import { notificationService } from '../services/notificationService';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -11,7 +12,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const [wordStyle, setWordStyle] = useState<'serif' | 'sans-serif'>(() =>
         localStorage.getItem('wordStyle') as 'serif' | 'sans-serif' || 'serif'
     );
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+    const [dailyWordTime, setDailyWordTime] = useState('08:00');
+    const [practiceRemindersEnabled, setPracticeRemindersEnabled] = useState(false);
     const username = authService.getCurrentUser()?.name || '';
+
+    useEffect(() => {
+        // Load notification settings
+        const settings = notificationService.getSettings();
+        setNotificationsEnabled(settings.dailyWordEnabled);
+        setPracticeRemindersEnabled(settings.practiceRemindersEnabled);
+        const time = `${String(settings.dailyWordTime.hour).padStart(2, '0')}:${String(settings.dailyWordTime.minute).padStart(2, '0')}`;
+        setDailyWordTime(time);
+    }, [isOpen]);
 
     const handleWordStyleChange = (newStyle: 'serif' | 'sans-serif') => {
         setWordStyle(newStyle);
@@ -35,6 +48,41 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const handleLogout = () => {
         authService.logout();
         window.location.reload();
+    };
+
+    const handleNotificationToggle = async (enabled: boolean) => {
+        if (enabled) {
+            const granted = await notificationService.requestPermission();
+            if (granted) {
+                setNotificationsEnabled(true);
+                const [hour, minute] = dailyWordTime.split(':').map(Number);
+                await notificationService.scheduleDailyWordNotification(hour, minute);
+            }
+        } else {
+            setNotificationsEnabled(false);
+            await notificationService.disableAllNotifications();
+        }
+    };
+
+    const handleDailyWordTimeChange = async (newTime: string) => {
+        setDailyWordTime(newTime);
+        if (notificationsEnabled) {
+            const [hour, minute] = newTime.split(':').map(Number);
+            await notificationService.scheduleDailyWordNotification(hour, minute);
+        }
+    };
+
+    const handlePracticeRemindersToggle = async (enabled: boolean) => {
+        if (enabled) {
+            const granted = await notificationService.requestPermission();
+            if (granted) {
+                setPracticeRemindersEnabled(true);
+                await notificationService.schedulePracticeReminders(true, 2);
+            }
+        } else {
+            setPracticeRemindersEnabled(false);
+            await notificationService.schedulePracticeReminders(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -69,6 +117,59 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         >
                             Logout
                         </button>
+                    </div>
+
+                    {/* Notification Section */}
+                    <div className="pb-6 border-b border-warm-gray">
+                        <h3 className="font-serif text-lg font-semibold text-text-primary mb-4">📬 Notifications</h3>
+                        <div className="space-y-4">
+                            {/* Daily Word Notification */}
+                            <div className="flex items-center justify-between p-3 bg-warm-gray rounded-lg">
+                                <div>
+                                    <p className="font-medium text-text-primary">Daily Word</p>
+                                    <p className="text-xs text-text-secondary">Get a new word every day</p>
+                                </div>
+                                <button
+                                    onClick={() => handleNotificationToggle(!notificationsEnabled)}
+                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${notificationsEnabled
+                                            ? 'bg-accent-teal text-white'
+                                            : 'bg-warm-gray-dark text-text-secondary'
+                                        }`}
+                                >
+                                    {notificationsEnabled ? 'On' : 'Off'}
+                                </button>
+                            </div>
+
+                            {/* Daily Word Time */}
+                            {notificationsEnabled && (
+                                <div className="pl-3 border-l-2 border-accent-teal">
+                                    <label className="text-xs text-text-secondary">Notification Time</label>
+                                    <input
+                                        type="time"
+                                        value={dailyWordTime}
+                                        onChange={(e) => handleDailyWordTimeChange(e.target.value)}
+                                        className="w-full mt-1 px-3 py-2 border border-warm-gray rounded-lg focus:outline-none focus:border-accent-teal"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Practice Reminders */}
+                            <div className="flex items-center justify-between p-3 bg-warm-gray rounded-lg">
+                                <div>
+                                    <p className="font-medium text-text-primary">Practice Reminders</p>
+                                    <p className="text-xs text-text-secondary">2 reminders daily</p>
+                                </div>
+                                <button
+                                    onClick={() => handlePracticeRemindersToggle(!practiceRemindersEnabled)}
+                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${practiceRemindersEnabled
+                                            ? 'bg-accent-teal text-white'
+                                            : 'bg-warm-gray-dark text-text-secondary'
+                                        }`}
+                                >
+                                    {practiceRemindersEnabled ? 'On' : 'Off'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Word Style Section */}

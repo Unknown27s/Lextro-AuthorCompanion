@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-    appId: 'com.authorcompanion.app',
+    appId: 'com.lextro.app',
     appName: 'Author Vocabulary Companion',
     webDir: 'dist',
     server: {
@@ -13,6 +13,8 @@ const config: CapacitorConfig = {
         },
         SplashScreen: {
             launchShowDuration: 0,
+            launchAutoHide: true,
+            showSpinner: false,
         },
     },
 };

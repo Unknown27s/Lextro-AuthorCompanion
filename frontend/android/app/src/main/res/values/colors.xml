@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App primary colors -->
+    <color name="colorPrimary">#2C7A7B</color>
+    <color name="colorPrimaryDark">#1f5556</color>
+    <color name="colorAccent">#6B46C1</color>
+    <color name="colorSecondary">#319795</color>
+    
+    <!-- Status bar colors -->
+    <color name="status_bar_color">#2C7A7B</color>
+    
+    <!-- Background colors -->
+    <color name="background_light">#FFFFFF</color>
+    <color name="background_dark">#F5F5F5</color>
+</resources>

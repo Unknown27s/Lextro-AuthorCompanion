@@ -1,11 +1,11 @@
 {
     "name": "Author Vocabulary Companion",
-    "short_name": "Vocab",
+    "short_name": "Lextro",
     "description": "Daily vocabulary learning for authors with AI-powered examples",
     "start_url": "/",
     "display": "standalone",
     "scope": "/",
-    "theme_color": "#667eea",
+    "theme_color": "#2C7A7B",
     "background_color": "#ffffff",
     "orientation": "portrait-primary",
     "icons": [

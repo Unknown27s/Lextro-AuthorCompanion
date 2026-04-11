@@ -90,3 +90,157 @@
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Safe area padding for notches and system UI (iOS/Android) */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+    }
+
+    .safe-bottom {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    .safe-area-bottom {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    .safe-area-top {
+        padding-top: max(0px, env(safe-area-inset-top));
+    }
+
+    .safe-area {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+    }
+}
+
+/* Mobile-first responsive text sizing */
+@media (max-width: 360px) {
+
+    h1,
+    h2,
+    h3 {
+        @apply -mt-0.5;
+    }
+
+    .text-word-title {
+        @apply text-base;
+    }
+
+    .text-body {
+        @apply text-xs;
+    }
+
+    /* Ensure word cards are still readable on very small screens */
+    article {
+        @apply p-3;
+    }
+
+    .px-4 {
+        @apply px-2;
+    }
+
+    .mx-4 {
+        @apply mx-1;
+    }
+}
+
+/* Tablet optimization (>= 768px) */
+@media (min-width: 768px) {
+    body {
+        @apply max-w-2xl mx-auto;
+    }
+
+    .max-w-compact {
+        @apply max-w-full;
+    }
+}
+
+/* Mobile-optimized spacing and touch targets */
+@media (max-width: 640px) {
+
+    /* Ensure bottom content is not hidden behind nav */
+    main {
+        padding-bottom: 2rem;
+        /* Extra space for safe area */
+        padding-bottom: calc(2rem + max(0px, env(safe-area-inset-bottom)));
+    }
+
+    /* Increase touch targets on mobile */
+    button,
+    [role="button"],
+    a {
+        @apply min-h-11 min-w-11;
+    }
+
+    /* Optimize padding for cards on small screens */
+    article {
+        @apply p-3 mx-2 mb-2;
+    }
+
+    /* Better horizontal padding for text on narrow screens */
+    article p {
+        @apply px-1;
+    }
+
+    /* Tighter spacing for modals on small screens */
+    .fixed.inset-0 {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Reduce button padding on very small screens */
+    button {
+        @apply px-2 py-1.5;
+    }
+}
+
+/* Touch-friendly button sizing for all devices */
+button,
+[role="button"] {
+    @apply min-h-12 min-w-12;
+}
+
+/* Extra touch targets for navigation */
+.touch-target {
+    @apply min-h-12 min-w-12;
+}
+
+.touch-target-nav {
+    @apply min-h-16 min-w-16;
+}
+
+/* Prevent layout shift from scrollbar on desktop, adapt to mobile */
+html {
+    overflow-y: scroll;
+    scroll-behavior: smooth;
+}
+
+/* Optimize image rendering for high-DPI screens */
+img,
+svg {
+    @apply antialiased;
+}
+
+/* Fix iOS Safari viewport height issues */
+body,
+html {
+    height: 100%;
+    width: 100%;
+}
+
+/* Better input styling for mobile */
+input,
+textarea,
+select {
+    @apply text-base;
+    /* Prevents iOS zoom on input focus */
+}
+
+/* Smooth scrolling for modals */
+.modal-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+}

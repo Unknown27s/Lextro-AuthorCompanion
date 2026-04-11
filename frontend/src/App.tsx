@@ -4,15 +4,16 @@ import { store } from './store';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import VocabFeed from './components/VocabFeed';
+import WordClassifier from './components/WordClassifier';
 import SettingsModal from './components/SettingsModal';
 import PracticeModal from './components/PracticeModal';
-import UseInDocumentOverlay from './components/UseInDocumentOverlay';
 import WordSearch from './components/WordSearch';
 import WritingPractice from './components/WritingPractice';
-import Login from './components/Login';
-import PracticeMode from './components/PracticeMode';
-import { authService } from './services/authService';
+import SingleWordView from './components/SingleWordView';
+import WordDetailsModal from './components/WordDetailsModal';
 import { spacedRepetitionService, ReviewSession } from './services/spacedRepetitionService';
+import { responsiveService } from './services/responsiveService';
+import { storageService } from './services/storageService';
 import './styles/index.css';
 
 function AppContent() {
@@ -23,9 +24,9 @@ function AppContent() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [activeTab, setActiveTab] = useState('home');
     const [showSearch, setShowSearch] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
     const [activePracticeMode, setActivePracticeMode] = useState<'quick' | 'standard' | 'focused' | null>(null);
     const [stats, setStats] = useState(spacedRepetitionService.getStatistics());
+    const [isSingleWordViewOpen, setIsSingleWordViewOpen] = useState(false);
 
     useEffect(() => {
         // Initialize PWA service worker
@@ -52,36 +53,22 @@ function AppContent() {
         setShowSearch(false);
     };
 
-    const handleLoginSuccess = () => {
-        setIsAuthenticated(true);
-    };
-
-    const handleLogout = () => {
-        authService.logout();
-        setIsAuthenticated(false);
-    };
-
     const handlePracticeComplete = (session: ReviewSession) => {
         console.log('Practice session complete:', session);
         setStats(spacedRepetitionService.getStatistics());
         setActivePracticeMode(null);
     };
 
-    // Show login if not authenticated
-    if (!isAuthenticated) {
-        return <Login onLoginSuccess={handleLoginSuccess} />;
-    }
-
     return (
-        <div className="min-h-screen bg-warm-white pb-20">
+        <div className="min-h-screen bg-warm-white flex flex-col safe-area">
             <Header
                 onSearchClick={() => setShowSearch(!showSearch)}
                 onSettingsClick={() => setIsSettingsOpen(true)}
             />
 
-            <main className="pb-4">
+            <main className="flex-1 overflow-y-auto pb-28 w-full px-0">
                 {showSearch && (
-                    <div className="pt-4 animate-fade-up">
+                    <div className="px-4 pt-2 pb-3 sm:pt-4 sm:pb-4 animate-fade-up">
                         <WordSearch
                             onWordAdded={handleWordAdded}
                             onClose={() => setShowSearch(false)}
@@ -97,93 +84,89 @@ function AppContent() {
                             key={refreshKey}
                             onPractice={handlePracticeClick}
                             onUseInDocument={handleUseInDocumentClick}
-                            showTypeSelector={true}
+                            onWordAdded={handleWordAdded}
+                            showOnlySaved={true}
+                            onOpenSingleWordView={() => setIsSingleWordViewOpen(true)}
                         />
                     </div>
                 )}
 
                 {activeTab === 'saved' && (
-                    <div className="pt-4">
-                        <VocabFeed
+                    <div className="px-4 py-4">
+                        <WordClassifier
                             key={refreshKey}
-                            onPractice={handlePracticeClick}
-                            onUseInDocument={handleUseInDocumentClick}
+                            onOpenSingleWordView={() => setIsSingleWordViewOpen(true)}
                         />
                     </div>
                 )}
 
                 {activeTab === 'editor' && (
-                    <div className="pt-4">
+                    <div className="px-4 py-4">
                         <WritingPractice />
                     </div>
                 )}
 
                 {activeTab === 'practice' && (
-                    <div className="pt-4">
-                        <div className="mx-4 space-y-4">
-                            {/* Stats Card */}
-                            <div className="bg-gradient-to-br from-accent-teal/10 to-accent-teal/5 rounded-lg p-6 border border-accent-teal/20">
-                                <h3 className="font-crimson text-xl text-warm-charcoal mb-4">Today's Stats</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs text-warm-taupe font-inter uppercase">Due Today</p>
-                                        <p className="font-crimson text-3xl text-accent-teal font-semibold">{stats.dueToday}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-warm-taupe font-inter uppercase">Accuracy</p>
-                                        <p className="font-crimson text-3xl text-accent-teal font-semibold">{stats.accuracy}%</p>
-                                    </div>
+                    <div className="px-4 py-4 space-y-3">
+                        <div className="bg-gradient-to-br from-accent-teal/10 to-accent-teal/5 rounded-card p-4 border border-accent-teal/20">
+                            <h3 className="font-serif text-lg text-text-primary mb-3">Today's Stats</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-white/50 rounded-lg p-3">
+                                    <p className="text-xs text-text-muted font-semibold uppercase">Due Today</p>
+                                    <p className="font-serif text-2xl text-accent-teal font-bold mt-1">{stats.dueToday}</p>
                                 </div>
-                            </div>
-
-                            {/* Practice Modes */}
-                            <div className="space-y-3">
-                                <button
-                                    onClick={() => setActivePracticeMode('quick')}
-                                    className="w-full bg-white border-2 border-warm-border rounded-lg p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all"
-                                >
-                                    <h4 className="font-crimson text-lg text-warm-charcoal mb-1">⚡ Quick Practice</h4>
-                                    <p className="text-sm text-warm-taupe font-inter">5 words • 2-3 minutes</p>
-                                </button>
-
-                                <button
-                                    onClick={() => setActivePracticeMode('standard')}
-                                    className="w-full bg-white border-2 border-warm-border rounded-lg p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all"
-                                >
-                                    <h4 className="font-crimson text-lg text-warm-charcoal mb-1">📚 Standard Practice</h4>
-                                    <p className="text-sm text-warm-taupe font-inter">10 words • 10-15 minutes</p>
-                                </button>
-
-                                <button
-                                    onClick={() => setActivePracticeMode('focused')}
-                                    className="w-full bg-white border-2 border-warm-border rounded-lg p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all"
-                                >
-                                    <h4 className="font-crimson text-lg text-warm-charcoal mb-1">🎯 Focused (Hard Words)</h4>
-                                    <p className="text-sm text-warm-taupe font-inter">5 difficult words • 8-10 minutes</p>
-                                </button>
+                                <div className="bg-white/50 rounded-lg p-3">
+                                    <p className="text-xs text-text-muted font-semibold uppercase">Accuracy</p>
+                                    <p className="font-serif text-2xl text-accent-teal font-bold mt-1">{stats.accuracy}%</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {activeTab === 'profile' && (
-                    <div className="pt-4">
-                        <div className="mx-4 space-y-4">
-                            <div className="bg-white rounded-lg p-6 border border-warm-border">
-                                <h3 className="font-crimson text-2xl text-warm-charcoal mb-4">Profile</h3>
-                                <div className="space-y-3">
+                        <div className="space-y-2">
+                            <button
+                                onClick={() => setActivePracticeMode('quick')}
+                                className="w-full bg-white border border-warm-gray-dark rounded-card p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all active:scale-95"
+                            >
+                                <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-xs text-warm-taupe font-inter uppercase">Name</p>
-                                        <p className="font-inter text-warm-charcoal">{authService.getCurrentUser()?.name}</p>
+                                        <h4 className="font-serif text-base text-text-primary font-semibold mb-0.5">⚡ Quick Practice</h4>
+                                        <p className="text-xs text-text-muted">5 words • 2-3 min</p>
                                     </div>
+                                    <svg className="w-5 h-5 text-accent-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
                                 </div>
-                                <button
-                                    onClick={handleLogout}
-                                    className="mt-6 w-full py-3 bg-red-50 text-red-700 rounded-lg font-inter font-medium hover:bg-red-100 transition-colors"
-                                >
-                                    Logout
-                                </button>
-                            </div>
+                            </button>
+
+                            <button
+                                onClick={() => setActivePracticeMode('standard')}
+                                className="w-full bg-white border border-warm-gray-dark rounded-card p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all active:scale-95"
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h4 className="font-serif text-base text-text-primary font-semibold mb-0.5">📚 Standard Practice</h4>
+                                        <p className="text-xs text-text-muted">10 words • 10-15 min</p>
+                                    </div>
+                                    <svg className="w-5 h-5 text-accent-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => setActivePracticeMode('focused')}
+                                className="w-full bg-white border border-warm-gray-dark rounded-card p-4 text-left hover:border-accent-teal hover:bg-accent-teal/5 transition-all active:scale-95"
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h4 className="font-serif text-base text-text-primary font-semibold mb-0.5">🎯 Focused Practice</h4>
+                                        <p className="text-xs text-text-muted">5 hard words • 8-10 min</p>
+                                    </div>
+                                    <svg className="w-5 h-5 text-accent-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </div>
+                            </button>
                         </div>
                     </div>
                 )}
@@ -191,7 +174,6 @@ function AppContent() {
 
             <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-            {/* Modals */}
             <PracticeModal
                 isOpen={isPracticeOpen}
                 vocabId={selectedVocabId}
@@ -209,18 +191,37 @@ function AppContent() {
                 onClose={() => setIsSettingsOpen(false)}
             />
 
+            <SingleWordView
+                isOpen={isSingleWordViewOpen}
+                onClose={() => setIsSingleWordViewOpen(false)}
+            />
+
             {activePracticeMode && (
-                <PracticeMode
+                <EnhancedPracticeMode
                     mode={activePracticeMode}
                     onComplete={handlePracticeComplete}
                     onClose={() => setActivePracticeMode(null)}
                 />
             )}
 
-            {/* Floating Add Button */}
+            {/* Test button for single word view */}
+            {activeTab === 'home' && (
+                <button
+                    onClick={() => setIsSingleWordViewOpen(true)}
+                    className="fixed bottom-36 right-4 w-14 h-14 bg-purple-500 hover:bg-purple-600 text-white rounded-full shadow-card-elevated transition-all duration-200 flex items-center justify-center z-40"
+                    aria-label="View one by one"
+                    title="View Words One by One"
+                >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
+            )}
+
             <button
                 onClick={() => setShowSearch(!showSearch)}
-                className="fixed bottom-20 right-4 w-14 h-14 bg-accent-teal hover:bg-accent-teal-dark text-white rounded-full shadow-card-elevated transition-all duration-200 flex items-center justify-center z-40"
+                className="fixed bottom-24 right-4 w-14 h-14 bg-accent-teal hover:bg-accent-teal-dark text-white rounded-full shadow-card-elevated transition-all duration-200 flex items-center justify-center z-40"
                 aria-label="Add custom word"
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

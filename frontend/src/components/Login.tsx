@@ -3,9 +3,10 @@ import { authService } from '../services/authService';
 
 interface LoginProps {
     onLoginSuccess: () => void;
+    onShowPurposeSelector?: (userId: string, userName: string) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onShowPurposeSelector }) => {
     const [mode, setMode] = useState<'login' | 'register'>('login');
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
@@ -29,10 +30,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     setError(result.error || 'Registration failed');
                     return;
                 }
+                // After registration, show purpose selector
+                const user = authService.getCurrentUser();
+                if (user && onShowPurposeSelector) {
+                    onShowPurposeSelector(user.id, user.name);
+                    return;
+                }
             } else {
                 const result = authService.login(name, password);
                 if (!result.success) {
                     setError(result.error || 'Login failed');
+                    return;
+                }
+                // Check if user has learning purpose set
+                const user = authService.getCurrentUser();
+                if (user && !user.learningPurpose && onShowPurposeSelector) {
+                    onShowPurposeSelector(user.id, user.name);
                     return;
                 }
             }

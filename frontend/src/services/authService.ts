@@ -10,6 +10,7 @@ export interface User {
     password: string; // hashed
     createdAt: number;
     lastLogin: number;
+    learningPurpose?: 'writing' | 'interviews' | 'exams' | 'presentation' | 'creative';
 }
 
 export interface AuthState {
@@ -148,6 +149,29 @@ export const authService = {
         localStorage.removeItem(AUTH_KEY);
 
         return { success: true };
+    },
+
+    /**
+     * Update user's learning purpose
+     */
+    updateLearningPurpose: (userId: string, purpose: 'writing' | 'interviews' | 'exams' | 'presentation' | 'creative'): boolean => {
+        const users = getAllUsers();
+        const user = users.find(u => u.id === userId);
+
+        if (!user) return false;
+
+        user.learningPurpose = purpose;
+        const updatedUsers = users.map(u => u.id === userId ? user : u);
+        localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
+
+        // Update current auth user
+        const currentUser = authService.getCurrentUser();
+        if (currentUser && currentUser.id === userId) {
+            currentUser.learningPurpose = purpose;
+            localStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
+        }
+
+        return true;
     },
 };
 

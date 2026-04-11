@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Lextro</string>
     <string name="title_activity_main">Lextro</string>
-    <string name="package_name">com.authorcompanion.app</string>
-    <string name="custom_url_scheme">com.authorcompanion.app</string>
+    <string name="package_name">com.lextro.app</string>
+    <string name="custom_url_scheme">com.lextro.app</string>
 </resources>

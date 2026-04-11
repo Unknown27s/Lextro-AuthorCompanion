@@ -5,7 +5,6 @@ import VocabCard from './VocabCard';
 interface WordSearchProps {
     onWordAdded?: () => void;
     onClose?: () => void;
-    isOpen?: boolean;
     onPractice?: (id: string) => void;
     onUseInDocument?: (id: string) => void;
 }
@@ -31,7 +30,7 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
     }, []);
 
     // Popular words for suggestions
-    const popularWords = ['eloquent', 'ephemeral', 'ubiquitous', 'sanguine', 'serendipity', 'mellifluous', 'pragmatic', 'taciturn', 'ebullient', 'obfuscate'];
+    const popularWords = ['eloquent', 'ephemeral', 'ubiquitous', 'sanguine', 'serendipity', 'mellifluous', 'pragmatic', 'taciturn', 'ebullient', 'obfuscate', 'perspicacious', 'verbose', 'laconic', 'ameliorate', 'exacerbate', 'pandemonium', 'euphoria', 'malaise', 'despairing', 'hopeful', 'blustery', 'placid', 'volatile', 'serene', 'jubilant', 'melancholic', 'meander', 'lurk', 'trudge', 'scurry', 'cavort', 'traverse', 'amble', 'hasten', 'skulk', 'saunter'];
 
     const getRecentSearches = () => {
         try {
@@ -55,15 +54,27 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
     const getSuggestions = () => {
         // Only show suggestions if user is actively typing
         if (!searchTerm.trim()) {
+            // Show recent searches if available
+            const recent = getRecentSearches();
+            if (recent.length > 0) {
+                return { label: '📋 Recent Searches', items: recent };
+            }
             return { label: '', items: [] };
         }
 
         // Show matching words from the popular words list
+        const searchLower = searchTerm.toLowerCase();
         const filtered = popularWords.filter(word =>
-            word.toLowerCase().includes(searchTerm.toLowerCase())
+            word.toLowerCase().startsWith(searchLower) || word.toLowerCase().includes(searchLower)
         );
 
-        return { label: 'Similar Words', items: filtered };
+        // Also include recent searches that match
+        const recent = getRecentSearches().filter((word: string) =>
+            word.toLowerCase().includes(searchLower)
+        );
+
+        const combined = [...new Set([...filtered, ...recent])]; // Remove duplicates
+        return { label: combined.length > 0 ? '✨ Suggestions' : '', items: combined.slice(0, 8) };
     };
 
     const handleSearch = async (e: React.FormEvent) => {
@@ -227,6 +238,9 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                 newSet.delete(id);
                 return newSet;
             });
+            if (onWordAdded) {
+                onWordAdded();
+            }
         } else {
             if (searchResult) {
                 localStorageApi.saveVocab(id, searchResult, 'saved');
@@ -276,17 +290,22 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
         }
     };
 
+    const handleSynonymClick = (word: string) => {
+        // Search for the synonym word
+        performSearch(word);
+    };
+
     // Modal search result view - Display as full VocabCard
     if (hasSearched && searchResult) {
         return (
-            <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-4">
-                <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg shadow-2xl animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+                <div className="bg-white rounded-2xl sm:rounded-3xl w-full sm:max-w-2xl shadow-2xl animate-slide-up max-h-[95vh] overflow-y-auto">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-warm-gray sticky top-0 bg-white rounded-t-3xl">
-                        <h3 className="font-serif text-lg font-semibold text-text-primary">Search Result</h3>
+                    <div className="flex items-center justify-between p-3 sm:p-6 border-b border-warm-gray sticky top-0 bg-white z-10">
+                        <h3 className="font-serif text-lg sm:text-2xl font-semibold text-text-primary">Word Details</h3>
                         <button
                             onClick={handleCloseSearch}
-                            className="text-text-secondary hover:text-text-primary hover:opacity-70 transition-all p-2"
+                            className="text-text-secondary hover:text-text-primary transition-all p-2 touch-target"
                             title="Close"
                         >
                             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -296,12 +315,13 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                     </div>
 
                     {/* Content - Full VocabCard */}
-                    <div className="p-4">
+                    <div className="p-0">
                         <VocabCard
                             item={searchResult}
                             onSave={handleSaveVocab}
                             onPractice={handlePractice}
                             onUseInDocument={handleUseInDocument}
+                            onSynonymClick={handleSynonymClick}
                             isSaved={savedWordIds.has(searchResult.id)}
                             source="online"
                         />
@@ -313,14 +333,14 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
 
     // Modal Search Overlay
     return (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-4">
-            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-lg shadow-2xl animate-slide-up">
+        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl sm:rounded-3xl w-full sm:max-w-lg shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-warm-gray">
-                    <h3 className="font-serif text-lg font-semibold text-text-primary">Search Dictionary</h3>
+                <div className="flex items-center justify-between p-3 sm:p-6 border-b border-warm-gray">
+                    <h3 className="font-serif text-lg sm:text-xl font-semibold text-text-primary">Search Dictionary</h3>
                     <button
                         onClick={handleCloseSearch}
-                        className="text-text-secondary hover:text-text-primary transition-colors"
+                        className="text-text-secondary hover:text-text-primary transition-colors p-2 touch-target"
                         title="Close search"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -330,12 +350,12 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                 </div>
 
                 {/* Category Filter */}
-                <div className="px-6 pt-4 pb-2 border-b border-warm-gray">
+                <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-warm-gray">
                     <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">Filter by Category</p>
                     <div className="flex flex-wrap gap-2">
                         <button
                             onClick={() => setSelectedCategory('all')}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${selectedCategory === 'all'
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all touch-target ${selectedCategory === 'all'
                                 ? 'bg-accent-teal text-white'
                                 : 'bg-warm-gray text-text-secondary hover:bg-warm-gray/80'
                                 }`}
@@ -346,7 +366,7 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                             <button
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat)}
-                                className={`px-3 py-1 rounded-full text-xs font-medium transition-all capitalize ${selectedCategory === cat
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all capitalize touch-target ${selectedCategory === cat
                                     ? 'bg-accent-teal text-white'
                                     : 'bg-warm-gray text-text-secondary hover:bg-warm-gray/80'
                                     }`}
@@ -358,7 +378,7 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-4">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                     <form onSubmit={handleSearch} className="relative">
                         <input
                             type="text"
@@ -368,16 +388,16 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                                 setShowSuggestions(true);
                             }}
                             onFocus={() => setShowSuggestions(true)}
-                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
                             placeholder="Search for a word..."
-                            className="w-full pl-4 pr-24 py-3 bg-white border border-warm-gray rounded-lg focus:outline-none focus:border-accent-teal focus:ring-1 focus:ring-accent-teal transition-all font-serif text-text-primary placeholder-text-muted"
+                            className="w-full pl-4 pr-24 py-3 sm:py-4 bg-white border border-warm-gray rounded-lg focus:outline-none focus:border-accent-teal focus:ring-2 focus:ring-accent-teal transition-all font-serif text-base text-text-primary placeholder-text-muted"
                             disabled={loading || isListening}
                             autoComplete="off"
                             autoFocus
                         />
 
                         {/* Search Suggestions Dropdown */}
-                        {showSuggestions && getSuggestions().items.length > 0 && (
+                        {showSuggestions && (
                             <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-warm-gray rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                                 <div className="p-2">
                                     {getSuggestions().label && (
@@ -385,31 +405,40 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                                             {getSuggestions().label}
                                         </p>
                                     )}
-                                    {getSuggestions().items.map((word: string) => (
-                                        <button
-                                            key={word}
-                                            type="button"
-                                            onClick={() => {
-                                                setSearchTerm(word);
-                                                setShowSuggestions(false);
-                                                performSearch(word);
-                                            }}
-                                            className="w-full text-left px-3 py-2 hover:bg-warm-gray rounded text-sm text-text-primary transition-colors"
-                                        >
-                                            {word}
-                                        </button>
-                                    ))}
+                                    {getSuggestions().items.length > 0 ? (
+                                        getSuggestions().items.map((word: string) => (
+                                            <button
+                                                key={word}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchTerm(word);
+                                                    setShowSuggestions(false);
+                                                    performSearch(word);
+                                                }}
+                                                className="w-full text-left px-3 py-2 hover:bg-warm-gray rounded text-sm text-text-primary transition-colors"
+                                            >
+                                                {word}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        searchTerm.trim() && (
+                                            <p className="px-3 py-2 text-xs text-text-muted italic">
+                                                No suggestions. Press Enter to search.
+                                            </p>
+                                        )
+                                    )}
                                 </div>
                             </div>
-                        )}                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        )}
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                             <button
                                 type="button"
                                 onClick={handleVoiceSearch}
                                 disabled={loading || isListening}
                                 title="Search by voice"
-                                className={`p-2 rounded-full transition-all ${isListening ? 'bg-accent-teal text-white animate-pulse' : 'text-accent-teal hover:bg-accent-teal/10'} disabled:opacity-50`}
+                                className={`p-2.5 rounded-full transition-all touch-target ${isListening ? 'bg-accent-teal text-white animate-pulse' : 'text-accent-teal hover:bg-accent-teal/10'} disabled:opacity-50`}
                             >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
                                     <path d="M17 16.91c-1.48 1.46-3.51 2.36-5.7 2.36-2.2 0-4.2-.9-5.7-2.36M19 21h2v-1c0-2.76-4.02-4.3-7-4.3s-7 1.54-7 4.3v1h2v-1c0-1.39 2.78-2.3 5-2.3s5 .91 5 2.3v1z" />
                                 </svg>
@@ -417,12 +446,12 @@ export default function WordSearch({ onWordAdded, onClose, onPractice, onUseInDo
                             <button
                                 type="submit"
                                 disabled={loading || !searchTerm.trim()}
-                                className="p-2 text-accent-teal hover:bg-accent-teal/10 rounded-full transition-colors disabled:opacity-50"
+                                className="p-2.5 text-accent-teal hover:bg-accent-teal/10 rounded-full transition-colors disabled:opacity-50 touch-target"
                             >
                                 {loading ? (
-                                    <div className="w-5 h-5 border-2 border-accent-teal border-t-transparent rounded-full animate-spin" />
+                                    <div className="w-6 h-6 border-2 border-accent-teal border-t-transparent rounded-full animate-spin" />
                                 ) : (
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
                                 )}

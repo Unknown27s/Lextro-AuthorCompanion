@@ -1,4 +1,4 @@
-# 📚 Author Vocabulary Companion
+# 📚 Lextro - Author Vocabulary Companion
 
 A **lightweight PWA** for vocabulary learning that works entirely in the browser.
 
@@ -6,307 +6,162 @@ A **lightweight PWA** for vocabulary learning that works entirely in the browser
 
 ---
 
-## 🎯 Key Features
+## 🎯 Core Features
 
-- ✅ **No Backend Required** - Entire app runs in browser
-- ✅ **Free Dictionary API** - Definitions, synonyms, examples
-- ✅ **Offline Support** - Works completely offline with PWA
-- ✅ **Local Storage** - All data stored in browser (no cloud sync needed)
-- ✅ **Dark Mode** - Beautiful dark/light themes
-- ✅ **Free Deployment** - Deploy to Vercel/Netlify for $0/month forever
-- ✅ **Practice Exercises** - Generate quizzes locally
-- ✅ **Use in Document** - Get writing examples with different voices
-
----
-
-## 📊 Architecture
-
-```
-┌─────────────────────────────────┐
-│   Browser (React + PWA)         │
-│                                 │
-│  ├─ Search & Display            │
-│  ├─ localStorage (user data)    │
-│  ├─ IndexedDB (vocab cache)    │
-│  └─ Service Worker (offline)   │
-│                                 │
-├─ Free Dictionary API (read-only)│
-└─────────────────────────────────┘
-
-💰 Cost: $0/month forever
-```
+- ✅ **Browser-Based** - Entire app runs in browser (no backend needed)
+- ✅ **Free Dictionary APIs** - Definitions, synonyms, examples, antonyms
+- ✅ **Offline Support** - Works completely offline with PWA + Service Worker
+- ✅ **Local Storage** - All data stored in browser (localStorage + IndexedDB)
+- ✅ **Practice Modes** - Spaced repetition, flashcards, writing exercises
+- ✅ **Word Tracking** - Alphabetical organization, duplicate detection, synonym linking
+- ✅ **Mobile Ready** - Responsive design, PWA installable, Android app support
+- ✅ **Dark Mode** - Beautiful light/dark themes with Tailwind CSS
 
 ---
 
-## 🚀 Quick Start
+## 📋 Documentation
 
-### Frontend Setup
+Quick navigation to essential docs:
 
+| Document | Purpose |
+|----------|---------|
+| **[QUICK_START.md](QUICK_START.md)** | 🚀 Setup & development guide |
+| **[QUICK_INSTALL.md](QUICK_INSTALL.md)** | 📱 APK installation on Windows |
+| **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** | 📊 Feature overview & architecture |
+| **[CONNECTIVITY_ANALYSIS_REPORT.md](CONNECTIVITY_ANALYSIS_REPORT.md)** | 🔍 System integration analysis |
+| **[PRACTICE_FEATURES.md](PRACTICE_FEATURES.md)** | 🎯 Practice modes & spaced repetition |
+| **[WORD_TRACKING_FEATURES.md](WORD_TRACKING_FEATURES.md)** | 🏷️ Word organization & synonyms |
+
+---
+
+## 🚀 Quick Start (30 seconds)
+
+### 1. Install Dependencies
 ```bash
 cd frontend
 npm install
+```
+
+### 2. Run Development Server
+```bash
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+### 3. Open in Browser
+```
+http://localhost:5173
+```
+
+**→ See [QUICK_START.md](QUICK_START.md) for full setup instructions**
+
+---
+
+## 🏗️ Project Structure
+
+```
+AuthorCompanion/
+├── frontend/                      # React + Vite PWA (main app)
+│   ├── src/
+│   │   ├── components/           # React UI components (18 files)
+│   │   ├── services/             # Business logic & APIs (14 services)
+│   │   ├── store/                # Redux state management
+│   │   ├── api/                  # HTTP client & local storage
+│   │   ├── data/                 # Dictionary data files (compressed)
+│   │   ├── utils/                # Helper utilities
+│   │   ├── styles/               # Tailwind CSS
+│   │   ├── App.tsx               # Root component
+│   │   └── main.tsx              # Entry point
+│   ├── android/                  # Android app config (Capacitor)
+│   ├── public/                   # PWA manifest, service worker, icons
+│   ├── capacitor.config.ts       # Mobile app config
+│   ├── vite.config.ts            # Build configuration
+│   ├── tsconfig.json             # TypeScript config
+│   └── package.json              # Dependencies
+│
+├── android/                      # Root Android project
+├── ios/                          # iOS build files
+├── scripts/                      # Build & utility scripts
+│
+└── Documentation Files (7):
+    ├── README.md                 # This file
+    ├── QUICK_START.md            # Setup guide
+    ├── QUICK_INSTALL.md          # APK installation
+    ├── IMPLEMENTATION_SUMMARY.md # Features overview
+    ├── CONNECTIVITY_ANALYSIS_REPORT.md # System analysis
+    ├── PRACTICE_FEATURES.md      # Practice modes
+    └── WORD_TRACKING_FEATURES.md # Word organization
+```
+
+---
+
+## 🔌 Tech Stack
+
+**Frontend:**
+- React 18.2 + TypeScript
+- Vite (build tool)
+- Redux Toolkit (state)
+- Tailwind CSS (styling)
+- Capacitor (mobile)
+
+**APIs:**
+- Free Dictionary API
+- Wordnik API (optional)
+- IndexedDB (offline data)
+- localStorage (user data)
+
+**Deployment:**
+- PWA (Progressive Web App)
+- Android APK via Capacitor
+- Service Worker for offline
+
+**Zero costs**: No backend, database, or paid services needed!
+
+---
+
+## 📊 Architecture Diagram
+
+```
+┌──────────────────────────────┐
+│   Browser / Mobile App       │
+│   (React + Vite PWA)         │
+│                              │
+│  ├─ Components               │
+│  ├─ Redux Store              │
+│  ├─ Services                 │
+│  ├─ localStorage (user data) │
+│  ├─ IndexedDB (vocab cache)  │
+│  └─ Service Worker (offline) │
+│                              │
+├─ Dictionary APIs (read-only) │
+└──────────────────────────────┘
+```
+
+---
+
+## ✨ Key Capabilities
+
+### Learning Features
+- **Daily Vocabulary** - Featured word each day
+- **Spaced Repetition** - Intelligent review scheduling
+- **Practice Modes** - Quick, Standard, Focused practice
+- **Flashcards** - Flip mode, Guess mode, dual switching
+- **Writing Practice** - Fill-in-the-blank exercises
+
+### Word Organization
+- **Alphabetical Browsing** - Browse words A-Z
+- **Duplicate Detection** - Auto-detect similar words
+- **Synonym Linking** - Find related words
+- **Word Tracking** - Track word relationships
+- **Categories** - Organize by emotion, action, place, etc.
+
+### Offline Support
+- **Caching** - Dictionary data cached locally
+- **Service Worker** - Offline access
+- **IndexedDB** - Large data storage
+- **Auto Sync** - Sync when back online
 
 ---
 
 ## 🌐 Deploy for Free
 
-See [DEPLOY-FREE.md](DEPLOY-FREE.md) for step-by-step instructions.
-
-**TL;DR:**
-1. Push to GitHub
-2. Connect to Vercel or Netlify
-3. Done! Your app is live and free forever
-
----
-
-## 📁 Project Structure
-
-```
-.
-└── frontend/              # React + Vite PWA (the entire app!)
-    ├── src/
-    │   ├── components/    # React components
-    │   ├── api/           # Dictionary API client + localStorage
-    │   ├── store/         # Redux state management
-    │   ├── services/      # Offline & cache services
-    │   └── styles/        # Tailwind CSS
-    ├── public/            # PWA manifest, icons, service worker
-    └── package.json
-```
-
-## 📚 Project Structure
-
-```
-.
-├── backend/              # NestJS API server
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── app.module.ts
-│   │   ├── entities/     # TypeORM entities
-│   │   ├── modules/      # Functional modules
-│   │   │   ├── vocab/
-│   │   │   ├── user-vocab/
-│   │   │   ├── practice/
-│   │   │   └── ai/
-│   │   ├── database/     # Migrations
-│   │   └── config/
-│   └── package.json
-│
-└── frontend/             # React + Vite PWA
-    ├── src/
-    │   ├── main.tsx
-    │   ├── App.tsx
-    │   ├── components/   # React components
-    │   ├── pages/        # Page routes
-    │   ├── api/          # API client
-    │   ├── store/        # Redux state
-    │   ├── services/     # Sync, Offline, Push
-    │   └── styles/
-    ├── public/           # PWA manifest, icons
-    └── package.json
-```
-
-## 🚀 Getting Started
-
-### Backend Setup
-
-```bash
-cd backend
-npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your database and API keys
-
-# Run migrations
-npm run migration:run
-
-# Start development server
-npm run start:dev
-```
-
-Backend runs on `http://localhost:3000`
-
-### Frontend Setup
-
-```bash
-cd frontend
-npm install
-
-# Start development server
-npm run dev
-```
-
-Frontend runs on `http://localhost:5173`
-
-## 🔧 Key Features
-
-- ✅ **Infinite Scroll Feed** - cursor-based pagination with vocabulary cards
-- ✅ **Daily Word** - personalized daily vocabulary with banner
-- ✅ **Dictionary API** - integrates `https://api.dictionaryapi.dev/api/v2/entries/en/<word>`
-- ✅ **Practice Exercises** - fill-blank, choose synonym, writing prompts
-- ✅ **Offline-First** - SQLite caching with automatic sync when online
-- ✅ **Push Notifications** - daily word reminders via FCM
-- ✅ **AI Integration** - example sentences in user's writing voice
-- ✅ **PWA Support** - installable on web and Android via Capacitor
-- ✅ **Dark Mode** - Tailwind CSS with dark theme support
-
-## 📱 PWA & Mobile
-
-### Build PWA
-
-```bash
-cd frontend
-npm run build:pwa
-```
-
-### Build Android App
-
-```bash
-cd frontend
-npm run android
-```
-
-## 🗄️ Database
-
-### PostgreSQL Schema
-
-Tables:
-- `vocab_items` - dictionary entries with definitions and examples
-- `user_vocab` - user's saved vocabulary with practice scores
-- `practice_results` - practice exercise attempts and scoring
-- `vocab_feed_cache` - cached feed pages for offline access
-
-### Run Migrations
-
-```bash
-cd backend
-npm run migration:run
-```
-
-## 🔌 API Endpoints
-
-### Vocabulary
-- `GET /vocab/feed?cursor=...&limit=20` - paginated feed
-- `GET /vocab/daily` - today's featured word
-- `GET /vocab/:id` - get single vocab item
-- `GET /vocab/search/:word` - search or fetch from dictionary API
-
-### User Vocabulary
-- `GET /user-vocab` - user's saved vocabulary
-- `POST /user-vocab` - save a word
-- `PATCH /user-vocab/:id/status` - update status (saved/learning/mastered)
-- `POST /user-vocab/sync` - sync offline changes
-
-### Practice
-- `GET /practice/:vocabId/exercise` - generate exercise
-- `POST /practice/submit` - submit answer and get score
-- `GET /practice/:vocabId/stats` - practice statistics
-
-### AI
-- `POST /ai/generate-example` - generate example sentence in user's voice
-- `POST /ai/rank-synonyms` - rank synonyms by relevance
-
-## 🔐 Authentication
-
-JWT tokens stored in localStorage. Add `Authorization: Bearer {token}` header to protected endpoints.
-
-```typescript
-// Frontend: Auto-added by apiClient interceptor
-const token = localStorage.getItem('auth_token');
-```
-
-## 💾 Offline Sync
-
-When offline:
-1. **Cache** - Feed and user vocab stored in IndexedDB (via Dexie)
-2. **Queue** - Changes queued locally with timestamps
-3. **Reconnect** - Automatic sync when online using exponential backoff
-4. **Conflict** - Server timestamps + last-write-wins strategy
-
-See `frontend/src/services/offline.ts` and `frontend/src/services/sync.ts`.
-
-## 🔔 Push Notifications
-
-- **Client** → Capacitor + Firebase Cloud Messaging
-- **Server** → Firebase Admin SDK sends notifications
-- **Payload** includes: title, body, vocab_item_id, exercise type
-
-Register token: `POST /push/subscribe`
-
-## 🎨 UI/UX
-
-### Components
-- `VocabCard` - displays word with definition, examples, synonyms
-- `VocabFeed` - infinite scroll container
-- `DailyWordBanner` - featured daily word
-- `PracticeModal` - micro-exercises
-- `UseInDocumentOverlay` - preview word in user's writing
-- `FiltersBar` - filter by difficulty, POS, voice
-- `SyncIndicator` - offline/sync status
-
-Styled with Tailwind CSS + custom utilities. Dark mode supported.
-
-## 🧪 Testing
-
-```bash
-# Backend
-cd backend
-npm run test
-
-# Frontend
-cd frontend
-npm run test
-```
-
-## 📚 External APIs
-
-- **Dictionary API**: `https://api.dictionaryapi.dev/api/v2/entries/en/<word>`
-  - Free, no auth required
-  - Returns definitions, examples, synonyms, audio
-
-- **OpenAI API** (optional):
-  - For AI example generation
-  - Set `OPENAI_API_KEY` in backend `.env`
-  - Falls back to heuristic generation if not configured
-
-## 🚢 Deployment
-
-### Backend (NestJS)
-- Dockerfile provided
-- Deploy to: Heroku, Railway, AWS, GCP, etc.
-- Set `DATABASE_URL` and other env vars
-
-### Frontend (Vite PWA)
-- Static build in `dist/`
-- Deploy to: Vercel, Netlify, GitHub Pages, etc.
-- PWA manifest auto-served at `/manifest.json`
-
-## 📖 Documentation
-
-- API OpenAPI spec: `backend/openapi.yaml` (generate with `@nestjs/swagger`)
-- Database schema: `backend/src/database/migrations/`
-- Service architecture: See individual service files
-
-## 🤝 Contributing
-
-1. Create feature branch: `git checkout -b feature/your-feature`
-2. Commit changes: `git commit -m "Add feature"`
-3. Push: `git push origin feature/your-feature`
-4. Open PR
-
-## 📄 License
-
-MIT
-
-## 🆘 Support
-
-For issues or feature requests, open an issue on GitHub.
-
----
-
-**Built with ❤️ for authors and language learners**
+The app is static and can be deployed anywhere for free:

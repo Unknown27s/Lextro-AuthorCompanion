@@ -2,143 +2,283 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { setLoading, addItems } from '../store/feedSlice';
-import { localStorageApi, dictionaryApi } from '../api/client';
+import { localStorageApi, VocabItem } from '../api/client';
+import { dictionaryService } from '../services/dictionaryService';
+import { authService } from '../services/authService';
 import VocabCard from './VocabCard';
 
 interface VocabFeedProps {
     onPractice: (id: string) => void;
     onUseInDocument: (id: string) => void;
+    onWordAdded?: () => void;  // NEW: Callback when a word is added/removed
     showTypeSelector?: boolean;
+    showOnlySaved?: boolean;  // NEW: Show only saved words
+    onOpenSingleWordView?: () => void;  // NEW: Callback to open single word view
 }
 
-const VocabFeed: React.FC<VocabFeedProps> = ({ onPractice, onUseInDocument, showTypeSelector = false }) => {
+const VocabFeed: React.FC<VocabFeedProps> = ({
+    onPractice,
+    onUseInDocument,
+    onWordAdded,
+    showTypeSelector = false,
+    showOnlySaved = true,  // Default to showing only saved words
+    onOpenSingleWordView
+}) => {
     const dispatch = useDispatch<AppDispatch>();
     const { items, loading } = useSelector((state: RootState) => state.feed);
     const loaderRef = useRef<HTMLDivElement>(null);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [loadingSamples, setLoadingSamples] = useState(false);
-    const [selectedType, setSelectedType] = useState('random');
-    const [apiWords, setApiWords] = useState<any[]>([]);
-    const [customCategories, setCustomCategories] = useState<Array<{ id: string, label: string, icon: string, words: string[] }>>([]);
-    const [showAddCategory, setShowAddCategory] = useState(false);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [newCategoryWords, setNewCategoryWords] = useState('');
     const [savedWordIds, setSavedWordIds] = useState<Set<string>>(new Set());
-    const [displayedWordCount, setDisplayedWordCount] = useState(0);
-    const [allCategoryWords, setAllCategoryWords] = useState<string[]>([]);
-    const [filterType, setFilterType] = useState<'all' | 'recent' | 'trending' | 'difficulty'>('all');
-    const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+    const [refreshKey, setRefreshKey] = useState(0);  // NEW: Force refresh key
 
-    // Comprehensive word lists by category
-    const wordsByCategory: { [key: string]: string[] } = {
-        random: ['eloquent', 'ephemeral', 'ubiquitous', 'sanguine', 'mellifluous', 'pragmatic', 'taciturn', 'querulous', 'ebullient', 'ephemeral', 'perspicacious', 'verbose', 'laconic', 'obfuscate', 'ameliorate', 'exacerbate', 'serendipity', 'pandemonium', 'euphoria', 'malaise'],
-        expression: ['leer', 'constrain', 'glare', 'smirk', 'grimace', 'scowl', 'sneer', 'bemoan', 'articulate', 'elucidate', 'pontificate', 'expound', 'harangue', 'castigate', 'admonish', 'exhort'],
-        emotion: ['despairing', 'hopeful', 'blustery', 'placid', 'volatile', 'serene', 'jubilant', 'melancholic', 'tranquil', 'morose', 'sanguine', 'despondent', 'elated', 'dejected', 'buoyant'],
-        action: ['meander', 'lurk', 'trudge', 'scurry', 'cavort', 'traverse', 'amble', 'hasten', 'skulk', 'saunter', 'procrastinate', 'languish', 'toil', 'dally', 'squander'],
-        place: ['vale', 'precipice', 'knoll', 'cove', 'chasm', 'gorge', 'dell', 'plateau', 'ravine', 'glade', 'archipelago', 'moor', 'estuary', 'lagoon', 'tundra'],
-        movement: ['slither', 'glide', 'saunter', 'skulk', 'spiral', 'undulate', 'propel', 'careen', 'hurtle', 'meander', 'flounder', 'lurch', 'shuffle', 'amble', 'pirouette'],
-    };
+    // Infinite scroll state
+    const [displayedWords, setDisplayedWords] = useState<any[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [hasMoreWords, setHasMoreWords] = useState(true);
+    const [allWords, setAllWords] = useState<any[]>([]);
+    const WORDS_PER_PAGE = 5; // Load 5 words at a time
 
-    // Load custom categories and saved words on mount
+    // Load saved words on mount
     useEffect(() => {
-        const saved = localStorage.getItem('customCategories');
-        if (saved) {
-            setCustomCategories(JSON.parse(saved));
+        if (showOnlySaved) {
+            const savedVocab = localStorageApi.getUserVocab();
+            const savedIds = new Set(savedVocab.map((v: any) => v.id));
+            setSavedWordIds(savedIds);
         }
+    }, [showOnlySaved]);
 
-        const savedVocab = localStorageApi.getUserVocab();
-        const savedIds = new Set(savedVocab.map((v: any) => v.vocab_item_id));
-        setSavedWordIds(savedIds);
-    }, []);
+    // Initialize all words on mount
+    useEffect(() => {
+        if (isInitialLoad) {
+            if (showOnlySaved) {
+                // Show only saved words - load from localStorage
+                try {
+                    const savedVocab = localStorageApi.getUserVocab();
+                    // Remove duplicates by word name
+                    const seenWords = new Set<string>();
+                    const uniqueWords = savedVocab.filter((sv: any) => {
+                        const key = sv.vocab_item.word.toLowerCase();
+                        if (seenWords.has(key)) {
+                            return false; // Skip duplicate
+                        }
+                        seenWords.add(key);
+                        return true;
+                    });
 
-    const getWordsForCategory = (type: string) => {
-        const customCategory = customCategories.find(c => c.id === type);
-        return customCategory ? customCategory.words : wordsByCategory[type] || wordsByCategory['random'];
-    };
+                    const savedWords = uniqueWords.map((sv: any) => ({
+                        ...sv.vocab_item,
+                        type: sv.vocab_item.tags?.[0] || 'saved',
+                        userVocabId: sv.id  // Keep track of the localStorage ID for removal
+                    }));
 
-    const fetchApiWords = useCallback(async (type: string) => {
+                    setAllWords(savedWords);
+                    setHasMoreWords(savedWords.length > WORDS_PER_PAGE);
+
+                    // Load first page (5 words)
+                    const firstPage = savedWords.slice(0, WORDS_PER_PAGE);
+                    setDisplayedWords(firstPage);
+                    setCurrentPage(1);
+                    setIsInitialLoad(false);
+
+                    console.log('Loaded ' + savedWords.length + ' unique saved words');
+                } catch (error) {
+                    console.error('Failed to load saved words:', error);
+                    setIsInitialLoad(false);
+                }
+            } else if (showTypeSelector) {
+                // Original behavior: Load from dictionary
+                try {
+                    const user = authService.getCurrentUser();
+                    const purpose = user?.learningPurpose || 'writing';
+                    const purposeWords = dictionaryService.getWordsByPurpose(purpose);
+
+                    const allLoadedWords: any[] = purposeWords.map(word => ({
+                        word,
+                        type: purpose,
+                        pos: 'noun',
+                        definition: `${word} - vocabulary for ${purpose}`,
+                        difficulty: 'medium'
+                    }));
+
+                    const shuffled = allLoadedWords.sort(() => Math.random() - 0.5);
+                    setAllWords(shuffled);
+                    setHasMoreWords(shuffled.length > WORDS_PER_PAGE);
+
+                    const firstPage = shuffled.slice(0, WORDS_PER_PAGE);
+                    setDisplayedWords(firstPage);
+                    setCurrentPage(1);
+                    setIsInitialLoad(false);
+                } catch (error) {
+                    console.error('Failed to initialize dictionary:', error);
+                    setIsInitialLoad(false);
+                }
+            } else {
+                loadMore();
+                setIsInitialLoad(false);
+            }
+        }
+    }, [isInitialLoad, showTypeSelector, showOnlySaved]);
+
+    // Refresh saved words whenever the component re-mounts (e.g., after adding a word)
+    useEffect(() => {
+        if (showOnlySaved) {
+            const savedVocab = localStorageApi.getUserVocab();
+            // Remove duplicates by word name
+            const seenWords = new Set<string>();
+            const uniqueWords = savedVocab.filter((sv: any) => {
+                const key = sv.vocab_item.word.toLowerCase();
+                if (seenWords.has(key)) {
+                    return false; // Skip duplicate
+                }
+                seenWords.add(key);
+                return true;
+            });
+
+            const savedWords = uniqueWords.map((sv: any) => ({
+                ...sv.vocab_item,
+                type: sv.vocab_item.tags?.[0] || 'saved',
+                userVocabId: sv.id  // Keep track of the localStorage ID for removal
+            }));
+
+            // Update the display
+            setAllWords(savedWords);
+            setHasMoreWords(savedWords.length > WORDS_PER_PAGE);
+            const firstPage = savedWords.slice(0, Math.min(WORDS_PER_PAGE, savedWords.length));
+            setDisplayedWords(firstPage);
+            setCurrentPage(1);
+
+            console.log('Refreshed saved words: ' + savedWords.length + ' unique words (' + savedVocab.length + ' total)');
+        }
+    }, [showOnlySaved]);
+
+    // Listen for word additions via storage events (from other components)
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'userVocab' && showOnlySaved) {
+                console.log('Detected change in userVocab, refreshing...');
+                setRefreshKey(prev => prev + 1);
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [showOnlySaved]);
+
+    // Refresh when refreshKey changes
+    useEffect(() => {
+        if (showOnlySaved && refreshKey > 0) {
+            const savedVocab = localStorageApi.getUserVocab();
+            const seenWords = new Set<string>();
+            const uniqueWords = savedVocab.filter((sv: any) => {
+                const key = sv.vocab_item.word.toLowerCase();
+                if (seenWords.has(key)) {
+                    return false;
+                }
+                seenWords.add(key);
+                return true;
+            });
+
+            const savedWords = uniqueWords.map((sv: any) => ({
+                ...sv.vocab_item,
+                type: sv.vocab_item.tags?.[0] || 'saved',
+                userVocabId: sv.id
+            }));
+
+            setAllWords(savedWords);
+            setHasMoreWords(savedWords.length > WORDS_PER_PAGE);
+            const firstPage = savedWords.slice(0, Math.min(WORDS_PER_PAGE, savedWords.length));
+            setDisplayedWords(firstPage);
+            setCurrentPage(1);
+
+            console.log('Updated saved words after add/remove: ' + savedWords.length + ' total');
+        }
+    }, [refreshKey, showOnlySaved]);
+
+    useEffect(() => {
+        if (!loaderRef.current) return;
+        if (!showTypeSelector && !showOnlySaved) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMoreWords && !loadingSamples) {
+                    loadMorePaginatedWords();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(loaderRef.current);
+        return () => observer.disconnect();
+    }, [hasMoreWords, loadingSamples, currentPage, allWords, showTypeSelector, showOnlySaved]);
+
+    const loadMorePaginatedWords = useCallback(() => {
+        if (loadingSamples || currentPage <= 0) return;
+
         setLoadingSamples(true);
-        setDisplayedWordCount(0);
         try {
-            const words = getWordsForCategory(type);
-            setAllCategoryWords(words);
+            const startIdx = currentPage * WORDS_PER_PAGE;
+            const endIdx = startIdx + WORDS_PER_PAGE;
+            const newWords = allWords.slice(startIdx, endIdx);
 
-            // Load first 3 words
-            await loadMoreWords(words, 0);
+            if (newWords.length === 0) {
+                setHasMoreWords(false);
+            } else {
+                setDisplayedWords(prev => [...prev, ...newWords]);
+                setCurrentPage(prev => prev + 1);
+                if (endIdx >= allWords.length) {
+                    setHasMoreWords(false);
+                }
+            }
         } catch (error) {
-            console.error('Failed to fetch API words:', error);
+            console.error('Failed to load more words:', error);
         } finally {
             setLoadingSamples(false);
         }
-    }, []);
+    }, [allWords, currentPage, loadingSamples]);
 
-    const loadMoreWords = async (words: string[], startIndex: number) => {
-        const batchSize = 3;
-        const endIndex = Math.min(startIndex + batchSize, words.length);
-        const wordsToFetch = words.slice(startIndex, endIndex);
+    const handleToggleSave = (word: any) => {
+        const wordId = `${word.word}-${word.type}`;
+        const isSaved = savedWordIds.has(wordId);
 
-        const fetchedWords = await Promise.all(
-            wordsToFetch.map(async (word) => {
-                try {
-                    const data = await dictionaryApi.getWord(word);
-                    const vocabItem = dictionaryApi.transformToVocabItem(data, word);
-                    return vocabItem;
-                } catch {
-                    return null;
-                }
-            })
-        );
-
-        setApiWords(prev => [...prev, ...fetchedWords.filter(Boolean)]);
-        setDisplayedWordCount(endIndex);
-    };
-
-    const handleTypeSelect = (type: string) => {
-        setSelectedType(type);
-        setApiWords([]);
-        fetchApiWords(type);
-    };
-
-    const handleToggleSave = (vocabItem: any) => {
-        const isSaved = savedWordIds.has(vocabItem.id);
+        console.log('Toggling save for word:', word.word, 'isSaved:', isSaved);
 
         if (isSaved) {
-            // Remove from saved
             const savedVocab = localStorageApi.getUserVocab();
-            const itemToRemove = savedVocab.find((v: any) => v.vocab_item_id === vocabItem.id);
+            const itemToRemove = savedVocab.find((v: any) => v.vocab_item.word === word.word);
+            console.log('Removing word:', itemToRemove?.id);
             if (itemToRemove) {
                 localStorageApi.removeVocab(itemToRemove.id);
             }
             setSavedWordIds(prev => {
                 const newSet = new Set(prev);
-                newSet.delete(vocabItem.id);
+                newSet.delete(wordId);
                 return newSet;
             });
         } else {
-            // Add to saved
-            localStorageApi.saveVocab(vocabItem.id, vocabItem, 'saved');
-            setSavedWordIds(prev => new Set(prev).add(vocabItem.id));
+            const vocabItem: VocabItem = {
+                id: wordId,
+                word: word.word,
+                pos: word.pos || 'noun',
+                definition: word.definition || 'Definition not available',
+                difficulty: word.difficulty || 'medium',
+                example_corpus: '',
+                ai_example: '',
+                synonyms: [],
+                tags: [word.type || 'word'],
+                created_at: new Date().toISOString()
+            };
+            console.log('Saving word:', vocabItem);
+            const result = localStorageApi.saveVocab(wordId, vocabItem, 'saved');
+            console.log('Save result:', result);
+            setSavedWordIds(prev => new Set(prev).add(wordId));
         }
-    };
 
-    const handleAddCategory = () => {
-        if (!newCategoryName.trim() || !newCategoryWords.trim()) return;
-
-        const words = newCategoryWords.split(',').map(w => w.trim()).filter(Boolean);
-        const newCategory = {
-            id: newCategoryName.toLowerCase().replace(/\s+/g, '-'),
-            label: newCategoryName,
-            icon: '📝',
-            words: words
-        };
-
-        const updated = [...customCategories, newCategory];
-        setCustomCategories(updated);
-        localStorage.setItem('customCategories', JSON.stringify(updated));
-
-        setNewCategoryName('');
-        setNewCategoryWords('');
-        setShowAddCategory(false);
+        // Trigger refresh of WordClassifier
+        if (onWordAdded) {
+            console.log('Calling onWordAdded callback');
+            onWordAdded();
+        }
     };
 
     const loadMore = useCallback(async () => {
@@ -160,243 +300,165 @@ const VocabFeed: React.FC<VocabFeedProps> = ({ onPractice, onUseInDocument, show
         }
     }, [dispatch]);
 
-    // Initial load
-    useEffect(() => {
-        if (isInitialLoad) {
-            if (showTypeSelector) {
-                fetchApiWords('random');
-            } else {
-                loadMore();
-            }
-            setIsInitialLoad(false);
-        }
-    }, [isInitialLoad, loadMore, showTypeSelector, fetchApiWords]);
-
-    // Infinite scroll observer for home tab
-    useEffect(() => {
-        if (!showTypeSelector || !loaderRef.current) return;
-
-        const observer = new IntersectionObserver(
-            async entries => {
-                if (entries[0].isIntersecting && !loadingSamples && displayedWordCount < allCategoryWords.length) {
-                    await loadMoreWords(allCategoryWords, displayedWordCount);
-                }
-            },
-            { threshold: 0.1 }
-        );
-
-        observer.observe(loaderRef.current);
-        return () => observer.disconnect();
-    }, [displayedWordCount, loadingSamples, allCategoryWords, showTypeSelector]);
+    const convertToVocabItem = (word: any): VocabItem => {
+        const wordId = `${word.word}-${word.type}`;
+        return {
+            id: wordId,
+            word: word.word,
+            pos: word.pos || 'noun',
+            definition: word.definition || 'Definition not available',
+            difficulty: word.difficulty || 'medium',
+            example_corpus: '',
+            ai_example: '',
+            synonyms: [],
+            tags: [word.type || 'word'],
+            created_at: new Date().toISOString()
+        };
+    };
 
     return (
         <div className="w-full pb-8">
-            {showTypeSelector && (
-                <div className="px-4 py-3 bg-white border-b border-warm-gray">
-                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-3">
-                        What type of word would you like?
-                    </label>
-                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        {[
-                            { id: 'random', label: 'Random', icon: '🎲' },
-                            { id: 'expression', label: 'Expression', icon: '💬' },
-                            { id: 'emotion', label: 'Emotion', icon: '😊' },
-                            { id: 'action', label: 'Action', icon: '⚡' },
-                            { id: 'place', label: 'Place', icon: '🏞️' },
-                            { id: 'movement', label: 'Movement', icon: '🚶' },
-                            ...customCategories
-                        ].map((type) => (
-                            <button
-                                key={type.id}
-                                onClick={() => handleTypeSelect(type.id)}
-                                disabled={loadingSamples}
-                                className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition-all flex items-center gap-2 transform hover:scale-105 active:scale-95 ${selectedType === type.id
-                                    ? 'bg-accent-teal text-white shadow-md'
-                                    : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                    } disabled:opacity-50`}
-                            >
-                                <span>{type.icon}</span>
-                                <span>{type.label}</span>
-                            </button>
-                        ))}
-                        <button
-                            onClick={() => setShowAddCategory(!showAddCategory)}
-                            className="px-4 py-2 rounded-full whitespace-nowrap font-medium bg-accent-violet text-white hover:bg-accent-violet-light transition-all flex items-center gap-2"
-                        >
-                            <span>➕</span>
-                            <span>Add</span>
-                        </button>
-                    </div>
-
-                    {/* Additional Filters Section */}
-                    <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        <button
-                            onClick={() => setFilterType('all')}
-                            className={`px-3 py-1.5 rounded-full whitespace-nowrap text-sm font-medium transition-all transform hover:scale-105 ${filterType === 'all'
-                                ? 'bg-accent-teal text-white'
-                                : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                }`}
-                        >
-                            All Words
-                        </button>
-                        <button
-                            onClick={() => setFilterType('recent')}
-                            className={`px-3 py-1.5 rounded-full whitespace-nowrap text-sm font-medium transition-all transform hover:scale-105 ${filterType === 'recent'
-                                ? 'bg-accent-teal text-white'
-                                : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                }`}
-                        >
-                            Recently Added
-                        </button>
-                        <button
-                            onClick={() => setFilterType('trending')}
-                            className={`px-3 py-1.5 rounded-full whitespace-nowrap text-sm font-medium transition-all transform hover:scale-105 ${filterType === 'trending'
-                                ? 'bg-accent-teal text-white'
-                                : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                }`}
-                        >
-                            🔥 Trending
-                        </button>
-                        <button
-                            onClick={() => setFilterType('difficulty')}
-                            className={`px-3 py-1.5 rounded-full whitespace-nowrap text-sm font-medium transition-all transform hover:scale-105 ${filterType === 'difficulty'
-                                ? 'bg-accent-teal text-white'
-                                : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                }`}
-                        >
-                            Difficulty
-                        </button>
-                    </div>
-
-                    {/* Difficulty Filter Dropdown */}
-                    {filterType === 'difficulty' && (
-                        <div className="mt-3 flex gap-2">
-                            {(['all', 'easy', 'medium', 'hard'] as const).map((level) => (
-                                <button
-                                    key={level}
-                                    onClick={() => setDifficultyFilter(level)}
-                                    className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${difficultyFilter === level
-                                        ? 'bg-accent-teal text-white'
-                                        : 'bg-warm-gray text-text-secondary hover:bg-warm-gray-dark'
-                                        }`}
-                                >
-                                    {level === 'all' ? 'All Levels' : level.charAt(0).toUpperCase() + level.slice(1)}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {showAddCategory && (
-                        <div className="mt-4 p-4 bg-warm-white rounded-lg border border-warm-gray">
-                            <h4 className="font-semibold text-text-primary mb-3">Create Custom Category</h4>
-                            <input
-                                type="text"
-                                value={newCategoryName}
-                                onChange={(e) => setNewCategoryName(e.target.value)}
-                                placeholder="Category name (e.g., Science)"
-                                className="w-full px-3 py-2 mb-2 border border-warm-gray rounded-lg focus:outline-none focus:border-accent-teal"
-                            />
-                            <textarea
-                                value={newCategoryWords}
-                                onChange={(e) => setNewCategoryWords(e.target.value)}
-                                placeholder="Enter words separated by commas"
-                                className="w-full px-3 py-2 mb-3 border border-warm-gray rounded-lg focus:outline-none focus:border-accent-teal resize-none"
-                                rows={3}
-                            />
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleAddCategory}
-                                    className="flex-1 px-4 py-2 bg-accent-teal text-white rounded-lg font-medium hover:bg-accent-teal-dark"
-                                >
-                                    Create
-                                </button>
-                                <button
-                                    onClick={() => setShowAddCategory(false)}
-                                    className="px-4 py-2 bg-warm-gray text-text-secondary rounded-lg font-medium hover:bg-warm-gray-dark"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="px-4 py-4 space-y-4">
-                {/* Today's Word Banner - Only show on home tab */}
-                {showTypeSelector && (
-                    <div className="bg-gradient-to-r from-accent-teal to-accent-teal-dark rounded-card p-4 text-white shadow-card mb-4 transform hover:scale-[1.02] transition-transform">
-                        <p className="text-xs font-semibold uppercase tracking-wide opacity-90">Today's Word</p>
-                        <h3 className="font-serif text-2xl font-bold mb-2 mt-1">{apiWords.length > 0 ? apiWords[0].word : 'Loading...'}</h3>
-                        {apiWords.length > 0 && (
-                            <>
-                                <p className="text-sm opacity-95 mb-3">{apiWords[0].definition}</p>
-                                <button
-                                    onClick={() => {
-                                        if (apiWords[0]) {
-                                            handleToggleSave(apiWords[0]);
-                                        }
-                                    }}
-                                    className="text-sm font-medium bg-white text-accent-teal hover:bg-warm-white rounded-lg px-3 py-1 transition-colors"
-                                >
-                                    {savedWordIds.has(apiWords[0].id) ? '✓ Saved' : '+ Save'}
-                                </button>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {/* Home tab - Category words with infinite scroll */}
-                {showTypeSelector && apiWords.length > 0 && (
+            <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4">
+                {/* Show only saved words from localStorage */}
+                {showOnlySaved && displayedWords.length > 0 && (
                     <>
-                        {apiWords.map((item: any) => (
+                        <div className="text-center py-3 space-y-2">
+                            <p className="text-text-muted text-sm font-semibold">
+                                Saved: {displayedWords.length} of {allWords.length} words
+                            </p>
+                            {onOpenSingleWordView && (
+                                <button
+                                    onClick={onOpenSingleWordView}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-accent-teal text-white rounded-lg hover:bg-accent-teal/90 transition-colors font-medium text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View One by One
+                                </button>
+                            )}
+                        </div>
+                        {displayedWords.map((word: any) => (
                             <VocabCard
-                                key={item.id}
-                                item={item}
+                                key={word.id || `${word.word}-${word.type}`}
+                                item={word}
                                 onSave={() => {
-                                    const isSaved = savedWordIds.has(item.id);
-                                    if (isSaved) {
+                                    // Remove from saved using the userVocabId
+                                    if (word.userVocabId) {
+                                        localStorageApi.removeVocab(word.userVocabId);
+                                    } else {
+                                        // Fallback: find by word name
                                         const savedVocab = localStorageApi.getUserVocab();
-                                        const itemToRemove = savedVocab.find((v: any) => v.vocab_item_id === item.id);
+                                        const itemToRemove = savedVocab.find((v: any) => v.vocab_item.word === word.word);
                                         if (itemToRemove) {
                                             localStorageApi.removeVocab(itemToRemove.id);
                                         }
-                                        setSavedWordIds(prev => {
-                                            const newSet = new Set(prev);
-                                            newSet.delete(item.id);
-                                            return newSet;
-                                        });
-                                    } else {
-                                        localStorageApi.saveVocab(item.id, item, 'saved');
-                                        setSavedWordIds(prev => new Set(prev).add(item.id));
                                     }
+                                    // Update displayed words
+                                    setDisplayedWords(prev => prev.filter(w => w.word !== word.word));
+                                    setSavedWordIds(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(word.id || `${word.word}-${word.type}`);
+                                        return newSet;
+                                    });
                                 }}
-                                onPractice={onPractice}
-                                onUseInDocument={onUseInDocument}
-                                isLoading={loadingSamples}
-                                isSaved={savedWordIds.has(item.id)}
+                                onPractice={() => onPractice(word.word)}
+                                onUseInDocument={() => onUseInDocument(word.word)}
+                                isLoading={false}
+                                isSaved={true}
+                                onOpenSingleWordView={onOpenSingleWordView}
                             />
                         ))}
-                        {displayedWordCount < allCategoryWords.length && (
-                            <div ref={loaderRef} className="py-4 text-center">
-                                <p className="text-text-muted text-sm">Scroll for more words...</p>
+
+                        {/* Infinite scroll loader */}
+                        {hasMoreWords && (
+                            <div ref={loaderRef} className="py-6 text-center">
+                                <div className="inline-flex items-center gap-2">
+                                    <div className="animate-spin h-4 w-4 border-2 border-accent-teal border-t-transparent rounded-full"></div>
+                                    <p className="text-text-muted text-sm">Loading more words...</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {!hasMoreWords && allWords.length > 0 && (
+                            <div className="py-6 text-center">
+                                <p className="text-text-muted text-sm">All {displayedWords.length} words loaded!</p>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Show only saved words - Empty state */}
+                {showOnlySaved && displayedWords.length === 0 && !isInitialLoad && (
+                    <div className="mx-auto text-center py-12">
+                        <p className="text-text-secondary mb-4 text-lg">No saved words yet</p>
+                        <p className="text-text-muted text-sm max-w-sm mx-auto">
+                            Use the search button above to add words you learn from books, speeches, or anywhere else.
+                        </p>
+                    </div>
+                )}
+
+                {/* Dictionary Feed - Infinite scroll with pre-classified words */}
+                {showTypeSelector && displayedWords.length > 0 && (
+                    <>
+                        {displayedWords.map((word: any, idx: number) => (
+                            <div key={`${word.word}-${idx}`}>
+                                {/* Type header every 5 words */}
+                                {idx % WORDS_PER_PAGE === 0 && (
+                                    <div className="py-3 px-2 mb-2">
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">
+                                            {word.type || 'Word'}
+                                        </h3>
+                                        <div className="h-0.5 bg-gradient-to-r from-accent-teal to-transparent mt-1"></div>
+                                    </div>
+                                )}
+
+                                <VocabCard
+                                    item={convertToVocabItem(word)}
+                                    onSave={() => handleToggleSave(word)}
+                                    onPractice={() => onPractice(word.word)}
+                                    onUseInDocument={() => onUseInDocument(word.word)}
+                                    isLoading={false}
+                                    isSaved={savedWordIds.has(`${word.word}-${word.type}`)}
+                                    onOpenSingleWordView={onOpenSingleWordView}
+                                />
+                            </div>
+                        ))}
+
+                        {/* Infinite scroll loader */}
+                        {hasMoreWords && (
+                            <div ref={loaderRef} className="py-6 text-center">
+                                <div className="inline-flex items-center gap-2">
+                                    <div className="animate-spin h-4 w-4 border-2 border-accent-teal border-t-transparent rounded-full"></div>
+                                    <p className="text-text-muted text-sm">Loading more words...</p>
+                                </div>
+                                <p className="text-xs text-text-muted mt-2">
+                                    Showing {displayedWords.length} of {allWords.length} words
+                                </p>
+                            </div>
+                        )}
+
+                        {!hasMoreWords && allWords.length > 0 && (
+                            <div className="py-6 text-center">
+                                <p className="text-text-muted text-sm">All {displayedWords.length} words loaded!</p>
                             </div>
                         )}
                     </>
                 )}
 
                 {/* Saved tab - Show vocabulary list */}
-                {!showTypeSelector && (
+                {!showTypeSelector && !showOnlySaved && (
                     <>
                         {items.length > 0 ? (
-                            items.map((item: any) => (
+                            items.map((item: VocabItem) => (
                                 <VocabCard
                                     key={item.id}
                                     item={item}
-                                    onSave={(itemId: string) => {
+                                    onSave={() => {
                                         // Remove from saved
                                         const savedVocab = localStorageApi.getUserVocab();
-                                        const itemToRemove = savedVocab.find((v: any) => v.vocab_item_id === itemId);
+                                        const itemToRemove = savedVocab.find((v: any) => v.vocab_item.id === item.id);
                                         if (itemToRemove) {
                                             localStorageApi.removeVocab(itemToRemove.id);
                                         }
@@ -404,31 +466,52 @@ const VocabFeed: React.FC<VocabFeedProps> = ({ onPractice, onUseInDocument, show
                                         // Update saved IDs
                                         setSavedWordIds(prev => {
                                             const newSet = new Set(prev);
-                                            newSet.delete(itemId);
+                                            newSet.delete(item.id);
                                             return newSet;
                                         });
 
                                         // Remove from Redux items (display)
-                                        dispatch(addItems({ items: items.filter((i: any) => i.id !== itemId), nextCursor: null }));
+                                        dispatch(addItems({ items: items.filter((i: VocabItem) => i.id !== item.id), nextCursor: null }));
                                     }}
                                     onPractice={onPractice}
                                     onUseInDocument={onUseInDocument}
                                     isLoading={loading}
                                     isSaved={true}
+                                    onOpenSingleWordView={onOpenSingleWordView}
                                 />
                             ))
                         ) : !loading ? (
                             <div className="mx-auto text-center py-12">
                                 <p className="text-text-secondary mb-6 max-w-md mx-auto">
-                                    No saved words yet. Search or select a category to add words to your vocabulary.
+                                    No saved words yet. Scroll in the Explore tab to find and save words.
                                 </p>
                             </div>
                         ) : null}
                     </>
                 )}
 
-                {/* Loading skeleton */}
-                {showTypeSelector && loadingSamples && (
+                {/* Loading initial state */}
+                {showTypeSelector && displayedWords.length === 0 && isInitialLoad && (
+                    <div className="space-y-4 py-8">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="bg-warm-gray border border-warm-gray-dark rounded-card p-6 animate-pulse">
+                                <div className="h-6 bg-warm-gray-dark rounded w-1/3 mb-4"></div>
+                                <div className="h-4 bg-warm-gray-dark rounded w-full mb-2"></div>
+                                <div className="h-4 bg-warm-gray-dark rounded w-5/6"></div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Empty state */}
+                {showTypeSelector && !isInitialLoad && displayedWords.length === 0 && (
+                    <div className="mx-auto text-center py-12">
+                        <p className="text-text-secondary">No words available</p>
+                    </div>
+                )}
+
+                {/* Loading skeleton for saved tab */}
+                {!showTypeSelector && loading && (
                     <div className="space-y-4">
                         {[1, 2, 3].map((i) => (
                             <div key={i} className="bg-warm-gray border border-warm-gray-dark rounded-card p-6 animate-pulse">
