@@ -9,7 +9,6 @@ import SettingsModal from './components/SettingsModal';
 import PracticeModal from './components/PracticeModal';
 import WritingPractice from './components/WritingPractice';
 import WordDetailsModal from './components/WordDetailsModal';
-import InlineWordSuggestion from './components/InlineWordSuggestion';
 import { spacedRepetitionService, ReviewSession } from './services/spacedRepetitionService';
 import { localStorageApi, VocabItem } from './api/client';
 import './styles/index.css';
@@ -22,7 +21,7 @@ function AppContent() {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [activePracticeMode, setActivePracticeMode] = useState<'quick' | 'standard' | 'focused' | null>(null);
     const [stats, setStats] = useState(spacedRepetitionService.getStatistics());
-    const [completedPractices, setCompletedPractices] = useState<Set<string>>(new Set());
+    const [completedPractices, setCompletedPractices] = useState<Map<string, string>>(new Map()); // wordId -> date
 
     useEffect(() => {
         // Initialize PWA service worker
@@ -33,10 +32,19 @@ function AppContent() {
                 .catch((err) => console.log('Service Worker registration failed:', err));
         }
 
-        // Load completed practices
+        // Load completed practices for today
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
         const saved = localStorage.getItem('completedPractices');
         if (saved) {
-            setCompletedPractices(new Set(JSON.parse(saved)));
+            const allPractices = new Map(JSON.parse(saved));
+            // Filter to only today's practices
+            const todayPractices = new Map();
+            allPractices.forEach((date, wordId) => {
+                if (date === today) {
+                    todayPractices.set(wordId, date);
+                }
+            });
+            setCompletedPractices(todayPractices);
         }
     }, []);
 
@@ -53,11 +61,17 @@ function AppContent() {
         console.log('Practice session complete:', session);
         setStats(spacedRepetitionService.getStatistics());
 
-        // Mark as completed
-        const newCompleted = new Set(completedPractices);
-        newCompleted.add(selectedVocabId);
+        // Mark as completed with today's date
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const newCompleted = new Map(completedPractices);
+        newCompleted.set(selectedVocabId, today);
         setCompletedPractices(newCompleted);
-        localStorage.setItem('completedPractices', JSON.stringify(Array.from(newCompleted)));
+
+        // Persist all-time history
+        const saved = localStorage.getItem('completedPractices');
+        const allTimeHistory = saved ? new Map(JSON.parse(saved)) : new Map();
+        allTimeHistory.set(selectedVocabId, today);
+        localStorage.setItem('completedPractices', JSON.stringify(Array.from(allTimeHistory.entries())));
 
         setActivePracticeMode(null);
     };
@@ -75,20 +89,7 @@ function AppContent() {
             <main className="flex-1 overflow-y-auto pb-28 w-full px-0">
                 {/* Home Tab with Inline Word Suggestion */}
                 {activeTab === 'home' && (
-                    <div className="pt-0">
-                        <div className="px-4 py-4 sticky top-0 bg-warm-white z-40 border-b border-warm-gray">
-                            <InlineWordSuggestion
-                                onWordSelect={(word, vocabItem) => {
-                                    const wordId = `${word}-${word}`;
-                                    localStorageApi.saveVocab(wordId, vocabItem, 'saved');
-                                    handleWordSave(word);
-                                }}
-                                onSave={(word) => {
-                                    handleWordSave(word);
-                                }}
-                                placeholder="🔍 Search words or add new..."
-                            />
-                        </div>
+                    <div className="pt-4">
                         <VocabFeed
                             key={refreshKey}
                             onPractice={handlePracticeClick}

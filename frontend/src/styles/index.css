@@ -117,33 +117,54 @@
 }
 
 /* Mobile-first responsive text sizing */
-@media (max-width: 360px) {
-
+@media (max-width: 480px) {
     h1,
     h2,
     h3 {
-        @apply -mt-0.5;
+        @apply text-lg;
     }
 
-    .text-word-title {
+    h4,
+    h5,
+    h6 {
         @apply text-base;
     }
 
-    .text-body {
-        @apply text-xs;
+    .text-word-title {
+        @apply text-lg font-semibold;
     }
 
-    /* Ensure word cards are still readable on very small screens */
+    .text-body {
+        @apply text-sm;
+    }
+
+    /* Ensure word cards are readable on small screens */
     article {
-        @apply p-3;
+        @apply p-4;
     }
 
     .px-4 {
-        @apply px-2;
+        @apply px-3;
     }
 
     .mx-4 {
-        @apply mx-1;
+        @apply mx-2;
+    }
+
+    /* Ensure definitions and examples are visible */
+    p {
+        @apply text-sm leading-relaxed;
+    }
+
+    /* Better readability for lists */
+    li {
+        @apply text-sm;
+    }
+
+    /* Enhanced definition and example visibility */
+    .definition,
+    .example {
+        @apply text-sm leading-relaxed text-gray-700;
     }
 }
 
