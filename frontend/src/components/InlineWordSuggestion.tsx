@@ -182,15 +182,13 @@ const InlineWordSuggestion: React.FC<InlineWordSuggestionProps> = ({
                             key={index}
                             data-index={index}
                             onClick={() => selectSuggestion(word)}
-                            className={`w-full text-left px-4 py-2.5 hover:bg-accent-teal/5 transition-colors flex items-center justify-between ${
-                                index === selectedIndex
+                            className={`w-full text-left px-4 py-2.5 hover:bg-accent-teal/5 transition-colors flex items-center justify-between ${index === selectedIndex
                                     ? 'bg-accent-teal/10 border-l-2 border-accent-teal'
                                     : ''
-                            } ${
-                                index !== suggestions.length - 1
+                                } ${index !== suggestions.length - 1
                                     ? 'border-b border-warm-gray'
                                     : ''
-                            }`}
+                                }`}
                         >
                             <span className="text-text-primary font-medium">{word}</span>
                             <span className="text-text-muted text-xs">↵</span>
