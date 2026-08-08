@@ -7,71 +7,90 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  checks:
+    name: Type-check & tests
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend-native
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      working-directory: frontend
-      run: npm ci
-      
-    - name: Build web app
-      working-directory: frontend
-      run: npm run build
-      
-    - name: Setup Java JDK
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
-      
-    - name: Setup Capacitor
-      working-directory: frontend
-      run: npm install -g @capacitor/cli
-      
-    - name: Verify Android Platform
-      working-directory: frontend
-      run: |
-        echo "Checking Android platform..."
-        ls -la
-        if [ -d "./android" ]; then
-          echo "✅ Android platform exists"
-          ls -la android/
-        else
-          echo "❌ Android platform missing - this should not happen"
-          exit 1
-        fi
-        
-    - name: Sync Capacitor
-      working-directory: frontend
-      run: npx cap sync android
-      
-    - name: Build Android APK
-      working-directory: frontend/android
-      run: |
-        echo "Entering android directory..."
-        echo "Contents of android directory:"
-        ls -la
-        echo "Making gradlew executable..."
-        chmod +x gradlew
-        echo "Building APK..."
-        ./gradlew assembleDebug
-        
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: daily-quote-debug.apk
-        path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend-native/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --ci
+
+  # Expo managed workflow: prebuild generates android/ from app.json,
+  # then Gradle compiles the debug APK.
+  build-android:
+    name: Build debug APK
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: frontend-native
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend-native/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # NDK 27.3.13750724 is pinned in app.json via expo-build-properties;
+      # the new-architecture (C++) build fails without it.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools ndk;27.3.13750724 platforms;android-36'
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      # After prebuild so the generated Gradle files are part of the cache key.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: frontend-native/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lextro-debug.apk
+          path: frontend-native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+

@@ -1,0 +1,10 @@
+export { authService } from './authService';
+export { dictionaryService } from './dictionaryService';
+export { exerciseGenerator } from './exerciseGenerator';
+export { exerciseStorageApi } from './exerciseStorage';
+export { responsiveService, useResponsive } from './responsiveService';
+export { spacedRepetitionService } from './spacedRepetitionService';
+export { storageService } from './storageService';
+export { wordLoadingService } from './wordLoadingService';
+export { wordnikService } from './wordnikService';
+export { wordTrackingService } from './wordTrackingService';

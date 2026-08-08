@@ -1,22 +1,33 @@
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
 # Dependencies
 node_modules/
-frontend/node_modules/
-/.pnp
-.pnp.js
+frontend-native/node_modules/
+
+# Expo
+.expo/
+frontend-native/.expo/
+web-build/
 
 # Build outputs
 dist/
 build/
+frontend-native/dist/
+frontend-native/build/
 *.tsbuildinfo
-frontend/dist/
-frontend/build/
+
+# Native build artifacts
+android/app/build/
+android/app/.cxx/
+android/.gradle/
+android/local.properties
+ios/Pods/
+ios/*.xcworkspace/xcuserdata/
+*.apk
+*.aab
+*.ipa
+
+# Expo prebuild output (regenerated from app.json — CNG)
+frontend-native/android/
+frontend-native/ios/
 
 # IDE
 .vscode/
@@ -26,78 +37,25 @@ frontend/build/
 *~
 .DS_Store
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-# Capacitor
-frontend/android/.gradle/
-frontend/android/local.properties
-frontend/android/**/build/
-frontend/ios/Pods/
-frontend/ios/Podfile.lock
-frontend/capacitor.config.local.ts
+# Metro cache
+*.js.bundle
+.metro/
 
-# Cache
-.cache/
-frontend/.cache/
-node_modules/.cache/
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# OS
-Thumbs.db
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Vite
-frontend/.vite/
-
-# Testing
-coverage/
-.nyc_output/
+# Lock files
+# package-lock.json
 
 # Environment
 .env
 .env.*.local
 
-# Temporary files
+# Temporary
 *.tmp
 *.temp
 .temp/
-
-# Lock files (optional - uncomment to commit lock files)
-# package-lock.json
-# yarn.lock
-
-# IDE settings
-*.sublime-project
-*.sublime-workspace
-
-# Git
-.git/
-.gitmodules
-
-# CI/CD
-.github/workflows/*.local.yml
-
-# Android
-frontend/android/gradlew
-frontend/android/gradlew.bat
-frontend/android/.idea/
-frontend/android/app/debug/
-frontend/android/app/release/
-
-# iOS
-frontend/ios/.swiftpm/
-frontend/ios/xcuserdata/
-frontend/ios/*.xcworkspace/xcuserdata/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/

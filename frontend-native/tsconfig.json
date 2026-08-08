@@ -1,0 +1,20 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["jest"],
+    "baseUrl": ".",
+    "paths": {
+      "@": ["./src"],
+      "@utils": ["./src/utils"],
+      "@services": ["./src/services"],
+      "@store": ["./src/store"],
+      "@api": ["./src/api"],
+      "@types": ["./src/types"],
+      "@navigation": ["./src/navigation"],
+      "@screens": ["./src/screens"]
+    }
+  },
+  "exclude": ["node_modules", "babel.config.js"]
+}

@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Lextro",
+    "slug": "lextro",
+    "version": "1.0.0",
+    "description": "Author Vocabulary Companion - Mobile-first vocabulary learning with spaced repetition",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lextro.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#f7efe2",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "package": "com.lextro.app"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-dev-client",
+      "expo-system-ui",
+      [
+        "expo-build-properties",
+        {
+          "android": { "ndkVersion": "27.3.13750724" }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f7efe2",
+          "resizeMode": "cover"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "12cc0d76-8369-49da-8a5d-3c4e12351155"
+      }
+    }
+  }
+}

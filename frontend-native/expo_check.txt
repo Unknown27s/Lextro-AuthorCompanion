@@ -1,0 +1,6 @@
+Starting project at F:\Git floder(Project)\AuthorCompanion\frontend-native
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
