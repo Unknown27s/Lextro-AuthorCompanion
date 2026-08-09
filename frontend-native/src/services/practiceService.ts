@@ -10,6 +10,7 @@
 
 import { localStorageApi } from '../api/client';
 import { wordLoadingService } from './wordLoadingService';
+import { sqliteService } from './sqliteService';
 import { authorQuotes, authorNames } from '../data/authorQuotes';
 
 export interface PracticeQuestion {
@@ -33,18 +34,36 @@ export const practiceService = {
 
     const saved = localStorageApi.getUserVocab();
     saved.forEach((uv) => {
-      const def = uv.vocab_item.definition?.trim();
-      if (uv.vocab_item.word && def) {
-        pool.push({ word: uv.vocab_item.word, definition: def });
+      const vocab = uv?.vocab_item;
+      const def = String(vocab?.definition ?? '').trim();
+      if (vocab?.word && def) {
+        pool.push({ word: vocab.word, definition: def });
       }
     });
 
     if (pool.length < minCount) {
       try {
+        // SQLite first: instant random rows from the prebuilt DB (no
+        // 60MB in-memory dictionary load). Falls back to the in-memory
+        // dictionary when SQLite isn't populated yet (e.g. web first run).
+        const sqliteExtras = await sqliteService.getRandomWords(minCount * 2);
+        sqliteExtras.forEach((entry) => {
+          const def = String(entry?.definition ?? '').trim();
+          if (entry?.word && def && !pool.some((p) => p.word === entry.word)) {
+            pool.push({ word: entry.word, definition: def });
+          }
+        });
+      } catch {
+        // SQLite unavailable — continue with saved vocab only
+      }
+    }
+
+    if (pool.length < minCount) {
+      try {
         const extras = await wordLoadingService.getRandomWords(minCount * 2);
         extras.forEach((entry) => {
-          const def = entry.definition?.trim();
-          if (entry.word && def && !pool.some((p) => p.word === entry.word)) {
+          const def = String(entry?.definition ?? '').trim();
+          if (entry?.word && def && !pool.some((p) => p.word === entry.word)) {
             pool.push({ word: entry.word, definition: def });
           }
         });

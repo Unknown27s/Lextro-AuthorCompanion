@@ -20,8 +20,6 @@ const glyphs: Record<string, string> = {
   Editor: '✎',
   Practice: '▶',
   Profile: '◎',
-  DailyReminder: '📅',
-  PracticeSettings: '⚙️',
 };
 
 export function TabBarIcon({ routeName, focused, color, size }: TabBarIconProps) {

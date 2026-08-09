@@ -43,7 +43,7 @@ function restoreAuthSession(): boolean {
 }
 
 export async function bootstrap(): Promise<BootstrapResult> {
-  logger.info(TAG, 'Starting bootstrap...');
+  logger.info(TAG, 'Starting bootstrap (fast path)...');
 
   let storageReady = false;
   try {
@@ -63,28 +63,47 @@ export async function bootstrap(): Promise<BootstrapResult> {
   responsiveService.init();
 
   const sessionRestored = restoreAuthSession();
+
+  logger.info(TAG, 'Bootstrap (fast path) complete', { sessionRestored });
+  return { dictionaryReady: false, sessionRestored, sqliteReady: false };
+}
+
+/**
+ * Background warmup — heavy caches that must never block first paint:
+ * 1. Seed the prebuilt SQLite DB (native) / import it (web) + mirror saved vocab.
+ * 2. Load the in-memory dictionary for practice + purpose feeds.
+ * Call once after the app renders, e.g. InteractionManager.runAfterInteractions.
+ */
+export async function warmup(): Promise<BootstrapResult> {
+  logger.info(TAG, 'Starting warmup...');
+
   const dictionaryReady = await initDictionary();
 
   let sqliteReady = false;
-  if (dictionaryReady) {
-    try {
-      const words = await safeAsync(() => wordLoadingService.getAllWords(), {
-        code: ErrorCodes.DictionaryLoad,
-        message: 'Dictionary read for SQLite import failed',
-      });
-      const savedItems = localStorageApi.getUserVocab();
-      sqliteReady = await sqliteService.ensureImported(words, savedItems);
-    } catch (error) {
-      logger.warn(TAG, 'SQLite import failed', error);
-      sqliteReady = false;
-    }
+  try {
+    const savedItems = localStorageApi.getUserVocab();
+    // With the prebuilt DB the dictionary is already imported, so skip the
+    // full 110k-row import and only mirror saved vocab (web/seed-fallback still
+    // needs the in-memory words for the import).
+    const alreadyImported = await sqliteService.isImported();
+    const words = alreadyImported ? [] : await wordLoadingService.getAllWords();
+    sqliteReady = await sqliteService.ensureImported(words, savedItems);
+  } catch (error) {
+    logger.warn(TAG, 'SQLite warmup failed', error);
+    sqliteReady = false;
   }
 
-  logger.info(TAG, 'Bootstrap complete', {
+  const sessionRestored = authService.getCurrentUser() !== null;
+
+  logger.info(TAG, 'Warmup complete', {
     dictionaryReady,
     sessionRestored,
     sqliteReady,
   } satisfies BootstrapResult);
 
-  return { dictionaryReady, sessionRestored, sqliteReady };
+  return {
+    dictionaryReady,
+    sessionRestored,
+    sqliteReady,
+  };
 }

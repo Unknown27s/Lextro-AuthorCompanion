@@ -8,11 +8,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { InteractionManager } from 'react-native';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store } from './src/store';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { bootstrap } from './src/bootstrap';
+import { bootstrap, warmup } from './src/bootstrap';
+import { syncStreakWidget } from './src/services/widgetSyncService';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
@@ -45,13 +47,21 @@ export default function App() {
   useEffect(() => {
     const prepareApp = async () => {
       try {
+        // Fast path: storage hydration + auth session only. The first frame
+        // renders without waiting on the dictionary / SQLite warmup.
         await bootstrap();
+        syncStreakWidget();
       } catch (e) {
         console.warn('[app] Bootstrap failed:', e);
       } finally {
         setIsReady(true);
         await SplashScreen.hideAsync();
       }
+
+      // Heavy caches warm up after the first interactions settle.
+      InteractionManager.runAfterInteractions(() => {
+        warmup().catch((e) => console.warn('[app] Warmup failed:', e));
+      });
     };
 
     prepareApp();

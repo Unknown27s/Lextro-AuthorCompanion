@@ -11,6 +11,7 @@
 
 import axios from 'axios';
 import { wordLoadingService } from '../services/wordLoadingService';
+import { sqliteService } from '../services/sqliteService';
 import { storageService } from '../services/storageService';
 import { localStorage as localStoragePolyfill } from '../utils/storage';
 import { VocabItem, FeedResponse, UserVocabItem } from '../types';
@@ -52,7 +53,35 @@ export const dictionaryApi = {
       console.warn('[api] Failed to access cache:', error);
     }
 
-    // 2. Check local indexed dictionary (instant, no network)
+    // 2. Prebuilt SQLite dictionary (instant on native — seeded once from the
+    //    bundled lextro.db.gz; does not require the in-memory dictionary load).
+    try {
+      const sqliteWord = await sqliteService.getWord(normalizedWord);
+      if (sqliteWord) {
+        // Rebuild the dual shape transformToVocabItem expects.
+        const shaped = {
+          ...sqliteWord,
+          meanings: [
+            {
+              partOfSpeech: sqliteWord.pos,
+              definitions: [
+                {
+                  definition: sqliteWord.definition,
+                  synonyms: sqliteWord.synonyms,
+                  antonyms: sqliteWord.antonyms,
+                },
+              ],
+            },
+          ],
+        };
+        await storageService.setItem(`word_${normalizedWord}`, shaped, 30);
+        return shaped;
+      }
+    } catch (error) {
+      console.warn('[api] SQLite dictionary lookup failed:', error);
+    }
+
+    // 3. Check local indexed dictionary (instant, no network)
     try {
       const wordData = await wordLoadingService.getWord(normalizedWord);
       if (wordData) {
@@ -74,7 +103,7 @@ export const dictionaryApi = {
       );
     }
 
-    // 3. Fallback to online API
+    // 4. Fallback to online API
     try {
       console.log('[api] Fetching from API:', normalizedWord);
       const response = await dictionaryClient.get(
@@ -194,14 +223,19 @@ export const localStorageApi = {
     try {
       const parsed = JSON.parse(data);
       return Array.isArray(parsed)
-        ? parsed.map((item: any) => ({
-            id: item.id,
-            vocab_item_id: item.vocab_item_id,
-            vocab_item: item.vocab_item,
-            status: item.status as 'saved' | 'learning' | 'mastered',
-            practice_score: item.practice_score,
-            added_at: item.added_at,
-          }))
+        ? parsed
+            .map((item: any) => ({
+              id: item.id,
+              vocab_item_id: item.vocab_item_id,
+              vocab_item: item.vocab_item,
+              status: item.status as 'saved' | 'learning' | 'mastered',
+              practice_score: item.practice_score,
+              added_at: item.added_at,
+            }))
+            .filter(
+              (item: UserVocabItem) =>
+                item?.vocab_item?.word && item?.vocab_item_id,
+            )
         : [];
     } catch {
       return [];

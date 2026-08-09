@@ -35,6 +35,27 @@
           "image": "./assets/icon.png",
           "resizeMode": "contain"
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./assets/fonts/JetBrainsMono_700Bold.ttf",
+            "./assets/fonts/JetBrainsMono_500Medium.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "Streak",
+              "label": "LEXTRO STREAK",
+              "description": "Your Lextro practice streak",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "updatePeriodMillis": 0
+            }
+          ]
+        }
       ]
     ],
     "extra": {

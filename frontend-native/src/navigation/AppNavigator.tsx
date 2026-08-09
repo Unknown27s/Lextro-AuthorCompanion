@@ -8,6 +8,9 @@
  * - Practice (spaced-repetition review)
  * - Profile (identity plate + telemetry + activity log)
  *
+ * Daily Reminder and Practice Settings are NOT bottom tabs — they live behind
+ * the Settings (☰) sheet, opened as full-screen modals from ScreenShell.
+ *
  * Safe-area aware: tab bar height = fixed content (56) + bottom inset
  * (gesture bar / home indicator), so it never overlaps the device nav.
  */
@@ -22,8 +25,6 @@ import SavedScreen from '../screens/SavedScreen';
 import EditorScreen from '../screens/EditorScreen';
 import PracticeScreen from '../screens/PracticeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import DailyReminderScreen from '../screens/DailyReminderScreen';
-import PracticeSettingsScreen from '../screens/PracticeSettingsScreen';
 import { TabBarIcon } from './TabBarIcon';
 import { colors, fonts, spacing } from '../theme';
 
@@ -33,8 +34,6 @@ export type TabParamList = {
   Editor: undefined;
   Practice: undefined;
   Profile: undefined;
-  DailyReminder: undefined;
-  PracticeSettings: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -102,28 +101,14 @@ export function AppNavigator() {
             tabBarStyle: getTabBarStyle(navigation.isFocused()),
           })}
         />
-        <Tab.Screen
+         <Tab.Screen
           name="Profile"
           component={ProfileScreen}
           options={({ navigation }) => ({
             tabBarStyle: getTabBarStyle(navigation.isFocused()),
           })}
         />
-        <Tab.Screen
-          name="DailyReminder"
-          component={DailyReminderScreen}
-          options={({ navigation }) => ({
-            tabBarStyle: getTabBarStyle(navigation.isFocused()),
-          })}
-        />
-        <Tab.Screen
-          name="PracticeSettings"
-          component={PracticeSettingsScreen}
-          options={({ navigation }) => ({
-            tabBarStyle: getTabBarStyle(navigation.isFocused()),
-          })}
-        />
-      </Tab.Navigator>
+       </Tab.Navigator>
     </NavigationContainer>
   );
 }

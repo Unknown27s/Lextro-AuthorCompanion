@@ -52,15 +52,18 @@ export default function HomeScreen() {
             const randomItem = vocab[Math.floor(Math.random() * vocab.length)];
             setDailyWord(randomItem.vocab_item);
         } else {
-            // Try to get a word from the offline dictionary
-            try {
-                const word = await dictionaryApi.getWord('vocabulary');
-                if (word) {
-                    setDailyWord(dictionaryApi.transformToVocabItem(word, 'vocabulary'));
-                }
-            } catch {
-                // dictionary not loaded yet, skip
-            }
+            // Dictionary-backed hero word: resolve when the cache is ready so the
+            // shell (stats/streak/feed) never blocks on the dictionary load.
+            dictionaryApi
+                .getWord('vocabulary')
+                .then((word) => {
+                    if (word) {
+                        setDailyWord(dictionaryApi.transformToVocabItem(word, 'vocabulary'));
+                    }
+                })
+                .catch(() => {
+                    // dictionary not loaded yet — shell still renders
+                });
         }
 
         setLoading(false);

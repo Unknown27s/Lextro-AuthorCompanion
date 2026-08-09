@@ -33,6 +33,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Build prebuilt SQLite database
+        run: npm run build:db
+
+      # The react-native-android-widget config plugin executes during prebuild
+      # (manifest receiver, font copy, provider class). Run prebuild here so
+      # widget/app.json config errors fail fast instead of after the Gradle job.
+      - name: Validate Expo prebuild & widget config
+        run: npx expo prebuild --platform android --no-install
+
       - name: Type-check
         run: npx tsc --noEmit
 

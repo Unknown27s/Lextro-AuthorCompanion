@@ -19,6 +19,7 @@ import { localStorageApi } from '../api/client';
 import { spacedRepetitionService, Statistics } from '../services/spacedRepetitionService';
 import { practiceService, PracticeQuestion } from '../services/practiceService';
 import { streakService } from '../services/streakService';
+import { syncStreakWidget } from '../services/widgetSyncService';
 import ScreenShell from '../components/ScreenShell';
 import CameraModal from '../components/CameraModal';
 import StreakCard from '../components/StreakCard';
@@ -89,6 +90,7 @@ export default function PracticeScreen() {
     if (endedRef.current) return;
     endedRef.current = true;
     streakService.recordSessionComplete();
+    syncStreakWidget();
     refreshStats();
     setView('results');
   }, [refreshStats]);

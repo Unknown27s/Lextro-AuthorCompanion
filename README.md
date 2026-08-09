@@ -85,7 +85,7 @@ AuthorCompanion/
 | Item | Status | Notes |
 |---|---|---|
 | **Daily review notifications** | ⏸ Deferred | Removed per request; `expo-notifications` kept in package.json for quick re-add. |
-| **SQLite migration** | ✅ Live | `expo-sqlite` FTS5 search layer (`src/services/sqliteService.ts`). The EDMT dictionary (`scripts/build-edmt-dictionary.mjs` → `assets/dictionary_indexed.json.gz`) + saved vocab are mirrored into SQLite at bootstrap (idempotent). AsyncStorage stays the source of truth for user data. `searchFts()` is the backend for the upcoming offline OCR flow. |
+| **SQLite migration** | ✅ Live | `expo-sqlite` FTS5 search layer (`src/services/sqliteService.ts`). The EDMT dictionary is shipped as a **prebuilt database** (`scripts/build-sqlite-db.mjs` → `assets/lextro.db.gz`), seeded once on native at warmup — no runtime import, no per-launch decompression. Saved vocab is mirrored at warmup (idempotent). AsyncStorage stays the source of truth for user data. `searchFts()` is the backend for the upcoming offline OCR flow. |
 
 ---
 
@@ -178,7 +178,10 @@ npx expo export --platform web
 
 > **Offline dictionary (EDMT).** `scripts/build-edmt-dictionary.mjs` converts
 > `EDMTDictionary.json` → `assets/dictionary_indexed.json.gz` (merge multi-sense
-> entries, map EDMT types like `(v. t.)`→`verb`, emit dual-shape words). Loading
-> branches by platform: web `fetch`es the asset URL + `pako.inflate`; native
-> reads the cached asset via `expo-file-system`. A mirror of the dictionary is
-> imported into SQLite FTS5 at bootstrap (`sqliteService.ts`).
+> entries, map EDMT types like `(v. t.)`→`verb`, emit dual-shape words), then
+> `scripts/build-sqlite-db.mjs` → `assets/lextro.db.gz` (the same rows in a
+> prebuilt SQLite + FTS5 file, shipped as the native search backend).
+> Loading branches by platform: web `fetch`es the gz asset URL + `pako.inflate`;
+> native seeds `lextro.db` from the bundled DB once at warmup
+> (`sqliteService.ts`) and opens it directly — startup never blocks on
+> decompression or the 110k-row import.
