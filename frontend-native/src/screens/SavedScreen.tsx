@@ -208,7 +208,7 @@ export default function SavedScreen() {
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>NO SPECIMENS YET</Text>
       <Text style={styles.emptyText}>
-        Save words from reading or the editor and they will be indexed here —
+        Save words while reading and they will be indexed here —
         alphabetically, numbered, ready for review.
       </Text>
     </View>

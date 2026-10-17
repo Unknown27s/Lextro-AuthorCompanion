@@ -208,7 +208,7 @@ export default function VocabFeed({
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyTitle}>NO SAVED WORDS</Text>
                     <Text style={styles.emptyText}>
-                        Save words from reading, the editor, or the search above — they will appear here, indexed and numbered.
+                        Save words while reading a book, or from the search above — they will appear here, indexed and numbered.
                     </Text>
                 </View>
             );
