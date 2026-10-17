@@ -17,7 +17,7 @@ interface TabBarIconProps {
 const glyphs: Record<string, string> = {
   Home: '⌂',
   Saved: '▤',
-  Editor: '✎',
+  Books: '▤',
   Practice: '▶',
   Profile: '◎',
 };

@@ -1,12 +1,11 @@
 /**
  * OCR Service — capture text from a photo and turn it into dictionary specimens.
  *
- * Pipeline mirrors the Editor's "scan document" flow but starts from a camera
- * image instead of pasted text:
+ * Pipeline captures text from a camera image instead of pasted text:
  *   1. capture an image URI (via expo-camera, done by the caller)
  *   2. native ML Kit text recognition → raw text  (web → paste-text fallback)
  *   3. cleanup pass: split, lowercase, strip punctuation/numbers, drop short
- *      words, dedupe — same shape as EditorScreen.extractWords
+ *      words, dedupe — one clean candidate list
  *   4. caller feeds each candidate into sqliteService.searchFts / dictionaryApi
  *
  * The ML Kit module is native-only. It is imported lazily so the web build
