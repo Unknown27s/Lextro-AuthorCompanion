@@ -48,7 +48,7 @@ AuthorCompanion/
 ├── frontend-native/         # React Native + Expo app
 │   ├── src/
 │   │   ├── components/      # Header, VocabCard, VocabFeed, WordDetailModal, StreakCard, etc.
-│   │   ├── screens/         # Home, Saved, Editor, Practice, Profile
+│   │   ├── screens/         # Home, Saved, Books, Practice, Profile
 │   │   ├── navigation/      # React Navigation setup (5-tab navigator)
 │   │   ├── services/        # SM-2 spaced repetition, practice activities, streak service
 │   │   ├── data/            # Curated datasets (author quotes for Author Guess)
@@ -74,7 +74,7 @@ AuthorCompanion/
 |---|---|---|
 | **Home — Specimen Poster** | `src/screens/HomeScreen.tsx` | Single-scroll page. Hero word as a specimen poster (giant display type, POS chip, definition), PRONOUNCE / SAVE actions, telemetry stats, recent specimens feed. Hero word opens the Word Detail modal. |
 | **Library / Saved** | `src/screens/SavedScreen.tsx` | Alphabetical index with `[NO. xxx]` indexes, hairline search field, `SPECIMENS` count, saved-word feed. Every word opens the full Word Detail modal. |
-| **Editor** | `src/screens/EditorScreen.tsx` | Paste a document → scans for vocabulary worth saving → inline word suggestions → one-tap save to Library. |
+| **Books — Reading Room** | `src/screens/BooksScreen.tsx` | Catalogue of imported/downloaded books, in-app paginated reader, tap-a-word dictionary, page-wise vocabulary index with search, bookmarks and last-read resume. |
 | **Practice — 3 activities** | `src/screens/PracticeScreen.tsx` | Definition Match, Speed Round, Author Guess + daily streak. See **Practice details** below. |
 | **Profile** | `src/screens/ProfileScreen.tsx` | Identity plate (`[NO. 001] IDENTITY`), telemetry strip (SPECIMENS COLLECTED / STREAK / MASTERY), DUE/ACCURACY/SESSIONS row, ACTIVITY LOG hairline table, "ALL DATA STORED LOCALLY" footer. |
 | **Word Detail (modal)** | `src/components/WordDetailModal.tsx` | Full-screen slide-up detail: `[ENTRY. NNNN]` bar, giant headword, corner-ticked definition box, numbered spec sheet (01 PRONUNCIATION ▶ SPEAK / 02 CLASSIFICATION / 03 DIFFICULTY / 04 SYNONYMS / 05 ANTONYMS / 06 RELATED / 07 FIRST SEEN / 08 EXAMPLES), action bar `▶ PRACTICE` / `☆ SAVE` / `USE`. |
