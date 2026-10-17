@@ -6,6 +6,7 @@
  * built-in `File.pickFileAsync` picker (no extra dependency).
  */
 
+import { Platform } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { Book, BookFormat } from '../types/books';
 import type { BookResult } from './bookApi';
@@ -13,8 +14,24 @@ import type { BookResult } from './bookApi';
 const LIBRARY_DIR = 'LextroBooks';
 const INDEX_NAME = 'library.json';
 
+export const BOOKS_UNSUPPORTED_ON_WEB = 'BOOKS_UNSUPPORTED_ON_WEB';
+
+export function isBookLibrarySupported(): boolean {
+  return Platform.OS !== 'web';
+}
+
+function assertSupported(): void {
+  if (!isBookLibrarySupported()) throw new Error(BOOKS_UNSUPPORTED_ON_WEB);
+}
+
 function libraryDir(): Directory {
+  assertSupported();
   return new Directory(Paths.document, LIBRARY_DIR);
+}
+
+function fileAt(uri: string): File {
+  assertSupported();
+  return new File(uri);
 }
 
 function indexFile(): File {
@@ -102,7 +119,7 @@ class BookLibraryService {
     const books = await readIndex();
     const book = books.find((existing) => existing.id === bookId);
     if (book?.fileUri) {
-      const file = new File(book.fileUri);
+      const file = fileAt(book.fileUri);
       if (file.exists) file.delete();
     }
     await writeIndex(books.filter((existing) => existing.id !== bookId));
@@ -144,6 +161,7 @@ class BookLibraryService {
   }
 
   async importFromPicker(): Promise<Book | null> {
+    assertSupported();
     const picked = await File.pickFileAsync({
       mimeTypes: ['text/plain', 'application/epub+zip'],
     });
@@ -170,11 +188,11 @@ class BookLibraryService {
   }
 
   async readText(book: Book): Promise<string> {
-    return new File(book.fileUri).text();
+    return fileAt(book.fileUri).text();
   }
 
   async readBytes(book: Book): Promise<Uint8Array> {
-    return new File(book.fileUri).bytes();
+    return fileAt(book.fileUri).bytes();
   }
 }
 
