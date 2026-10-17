@@ -471,6 +471,41 @@ class SqliteService {
     };
   }
 
+  /** Bulk exact lookup. Returns a map of word -> { definition, pos, difficulty }. */
+  async getWordsExact(
+    words: string[],
+  ): Promise<Record<string, { definition: string; pos: string; difficulty: string }>> {
+    const db = await this.getDb();
+    const out: Record<string, { definition: string; pos: string; difficulty: string }> = {};
+    if (!db || words.length === 0) return out;
+
+    const unique = Array.from(
+      new Set(words.map((w) => w.toLowerCase().trim()).filter(Boolean)),
+    );
+    const CHUNK = 400; // stay well under SQLite's variable limit
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = await db.getAllAsync<{
+        word: string;
+        definition: string;
+        pos: string;
+        difficulty: string;
+      }>(
+        `SELECT word, definition, pos, difficulty FROM words WHERE id IN (${placeholders})`,
+        ...chunk,
+      );
+      for (const row of rows) {
+        out[row.word.toLowerCase()] = {
+          definition: row.definition,
+          pos: row.pos,
+          difficulty: row.difficulty,
+        };
+      }
+    }
+    return out;
+  }
+
   /** Random dictionary rows — cheap practice-pool filler (no in-memory load). */
   async getRandomWords(count: number): Promise<any[]> {
     const db = await this.getDb();
