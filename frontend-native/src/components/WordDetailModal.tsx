@@ -181,11 +181,11 @@ export default function WordDetailModal({
                         <Text style={styles.difficultyText}>
                             DIFF: {displayItem.difficulty.toUpperCase()}
                         </Text>
-                        {displayItem.created_at && (
+                        {displayItem.created_at ? (
                             <Text style={styles.firstSeenText}>
                                 FIRST SEEN: {getFormattedDate(displayItem.created_at)}
                             </Text>
-                        )}
+                        ) : null}
                     </View>
 
                     {/* Corner-ticked definition box */}
@@ -289,24 +289,24 @@ export default function WordDetailModal({
                     </View>
 
                     {/* 08. Examples */}
-                    {(displayItem.example_corpus || displayItem.ai_example) && (
+                    {(displayItem.example_corpus || displayItem.ai_example) ? (
                         <View style={styles.examplesSection}>
                             <Text style={styles.examplesLabel}>08. EXAMPLES</Text>
-                            {displayItem.example_corpus && (
+                            {displayItem.example_corpus ? (
                                 <View style={styles.exampleBlock}>
                                     <Text style={styles.exampleQuote}>“{displayItem.example_corpus}”</Text>
                                 </View>
-                            )}
-                            {displayItem.ai_example && (
+                            ) : null}
+                            {displayItem.ai_example ? (
                                 <View style={styles.exampleBlock}>
                                     <Text style={styles.exampleQuote}>“{displayItem.ai_example}”</Text>
                                     <View style={[frame.chip, styles.voiceBadge]}>
                                         <Text style={styles.voiceBadgeText}>IN YOUR VOICE</Text>
                                     </View>
                                 </View>
-                            )}
+                            ) : null}
                         </View>
-                    )}
+                    ) : null}
                 </ScrollView>
 
                 {/* Action bar */}
