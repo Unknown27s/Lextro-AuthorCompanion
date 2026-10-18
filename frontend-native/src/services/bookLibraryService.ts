@@ -57,6 +57,40 @@ export function titleFromFileName(nameOrUri: string): string {
   return stripped || 'UNTITLED';
 }
 
+const EPUB_ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
+
+export function detectFormatFromContent(bytes: Uint8Array): BookFormat | null {
+  const isZip = EPUB_ZIP_MAGIC.every((byte, index) => bytes[index] === byte);
+  return isZip ? 'epub' : null;
+}
+
+export function hasUnsupportedExtension(nameOrUri: string): boolean {
+  const segment = (nameOrUri.split('?')[0].split(/[\\/]/).pop() ?? '').toLowerCase();
+  const dot = segment.lastIndexOf('.');
+  if (dot <= 0) return false;
+  const extension = segment.slice(dot + 1);
+  return extension !== 'epub' && extension !== 'txt';
+}
+
+// Android's Downloads provider returns a content:// uri holding a numeric
+// document id rather than a file name, so the extension is unreachable here.
+async function readPickedBook(
+  picked: File,
+): Promise<{ format: BookFormat; content: string | Uint8Array }> {
+  const byExtension = detectFormat(picked.uri);
+  if (byExtension) {
+    return {
+      format: byExtension,
+      content: byExtension === 'epub' ? await picked.bytes() : await picked.text(),
+    };
+  }
+  if (hasUnsupportedExtension(picked.uri)) throw new Error('UNSUPPORTED_BOOK_FORMAT');
+  const bytes = await picked.bytes();
+  return detectFormatFromContent(bytes) === 'epub'
+    ? { format: 'epub', content: bytes }
+    : { format: 'txt', content: await picked.text() };
+}
+
 export function fileNameFor(book: Pick<Book, 'id' | 'format'>): string {
   return `${book.id.replace(/[^a-zA-Z0-9._-]/g, '_')}.${book.format}`;
 }
@@ -167,12 +201,12 @@ class BookLibraryService {
     });
     if (picked.canceled || !picked.result) return null;
 
-    const format = detectFormat(picked.result.uri);
-    if (!format) throw new Error('UNSUPPORTED_BOOK_FORMAT');
+    const pickedFile = picked.result;
+    const { format, content } = await readPickedBook(pickedFile);
 
     const draft: Book = {
-      id: localIdFrom(picked.result.uri),
-      title: titleFromFileName(picked.result.uri),
+      id: localIdFrom(pickedFile.uri),
+      title: titleFromFileName(pickedFile.uri),
       author: 'UNKNOWN',
       source: 'local',
       format,
@@ -182,8 +216,6 @@ class BookLibraryService {
       addedAt: new Date().toISOString(),
     };
 
-    const content =
-      format === 'epub' ? await picked.result.bytes() : await picked.result.text();
     return this.save(draft, content);
   }
 

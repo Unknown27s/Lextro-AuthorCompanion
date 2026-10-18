@@ -77,6 +77,8 @@ jest.mock('expo-file-system', () => {
 import {
   bookLibraryService,
   detectFormat,
+  detectFormatFromContent,
+  hasUnsupportedExtension,
   titleFromFileName,
   fileNameFor,
   byteLengthOf,
@@ -133,6 +135,18 @@ describe('pure helpers', () => {
     expect(localIdFrom('x')).toBe(localIdFrom('x'));
     expect(localIdFrom('x')).not.toBe(localIdFrom('y'));
     expect(localIdFrom('x').startsWith('local:')).toBe(true);
+  });
+
+  it('identifies a zip payload as epub', () => {
+    expect(detectFormatFromContent(new Uint8Array([0x50, 0x4b, 0x03, 0x04]))).toBe('epub');
+    expect(detectFormatFromContent(new Uint8Array([0x50, 0x4b]))).toBeNull();
+    expect(detectFormatFromContent(new Uint8Array())).toBeNull();
+  });
+
+  it('flags only extensions we cannot read', () => {
+    expect(hasUnsupportedExtension('file:///docs/paper.pdf')).toBe(true);
+    expect(hasUnsupportedExtension('file:///docs/book.epub')).toBe(false);
+    expect(hasUnsupportedExtension('content://x/document/1234')).toBe(false);
   });
 });
 
@@ -245,5 +259,32 @@ describe('importFromPicker', () => {
       result: { uri: 'file:///docs/paper.pdf', text: async () => '', bytes: async () => new Uint8Array() },
     };
     await expect(bookLibraryService.importFromPicker()).rejects.toThrow('UNSUPPORTED_BOOK_FORMAT');
+  });
+
+  it('identifies an extensionless epub from its contents', async () => {
+    state.pick = {
+      canceled: false,
+      result: {
+        uri: 'content://com.android.providers.downloads.documents/document/1234',
+        text: async () => '',
+        bytes: async () => new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]),
+      },
+    };
+    const book = await bookLibraryService.importFromPicker();
+    expect(book).toMatchObject({ format: 'epub', source: 'local' });
+  });
+
+  it('treats extensionless non-zip content as text', async () => {
+    state.pick = {
+      canceled: false,
+      result: {
+        uri: 'content://com.android.providers.downloads.documents/document/5678',
+        text: async () => 'Call me Ishmael.',
+        bytes: async () => new Uint8Array([0x43, 0x61, 0x6c]),
+      },
+    };
+    const book = await bookLibraryService.importFromPicker();
+    expect(book).toMatchObject({ format: 'txt' });
+    expect(book?.sizeBytes).toBe(16);
   });
 });
