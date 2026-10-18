@@ -26,7 +26,7 @@ import { sqliteService } from '../services/sqliteService';
 import { bookmarkService } from '../services/bookmarkService';
 import { bookLibraryService, isBookLibrarySupported } from '../services/bookLibraryService';
 import { bookReaderService } from '../services/bookReaderService';
-import { searchGutendex } from '../services/bookApi';
+import { popularGutendex, searchGutendex } from '../services/bookApi';
 import type { BookResult } from '../services/bookApi';
 import type { Book, BookPage } from '../types/books';
 import type { VocabItem as VocabItemType } from '../types';
@@ -37,11 +37,17 @@ interface OpenBook {
   startPage: number;
 }
 
+const POPULAR_LIMIT = 6;
+
 function formatSize(bytes: number): string {
   if (bytes <= 0) return '—';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDownloads(count: number): string {
+  return count >= 1000 ? `${Math.round(count / 1000)}K` : String(count);
 }
 
 function toVocabItem(word: string, row: Record<string, unknown> | null): VocabItemType {
@@ -79,6 +85,7 @@ function toVocabItem(word: string, row: Record<string, unknown> | null): VocabIt
 
 export default function BooksScreen() {
   const [books, setBooks] = useState<Book[]>([]);
+  const [popular, setPopular] = useState<BookResult[]>([]);
   const [query, setQuery] = useState('');
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverQuery, setDiscoverQuery] = useState('');
@@ -99,6 +106,21 @@ export default function BooksScreen() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!librarySupported) return;
+    let cancelled = false;
+    popularGutendex(1)
+      .then((results) => {
+        if (!cancelled) setPopular(results.slice(0, POPULAR_LIMIT));
+      })
+      .catch(() => {
+        if (!cancelled) setPopular([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [librarySupported]);
 
   const shelf = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -374,6 +396,33 @@ export default function BooksScreen() {
                 ? 'Import a file or browse the catalogue to start reading and collect vocabulary as you go.'
                 : 'No books match that filter.'}
             </Text>
+            {books.length === 0 && popular.length > 0 && (
+              <View style={styles.suggestions}>
+                <Text style={styles.suggestTitle}>POPULAR ON GUTENBERG</Text>
+                {popular.map((result) => (
+                  <View key={result.id} style={styles.resultRow}>
+                    <View style={styles.resultInfo}>
+                      <Text style={styles.resultTitle} numberOfLines={2}>
+                        {result.title}
+                      </Text>
+                      <Text style={styles.resultMeta}>
+                        {result.author.toUpperCase()} · {result.format.toUpperCase()} ·{' '}
+                        {formatDownloads(result.downloadCount)} DL
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleDownload(result)}
+                      disabled={busy !== null}
+                      style={[styles.smallBtn, busy !== null && styles.btnDisabled]}
+                      accessibilityLabel={`Download ${result.title}`}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.smallBtnText}>↓ GET</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         ) : (
           shelf.map((book) => {
@@ -556,4 +605,11 @@ const styles = StyleSheet.create({
   empty: { paddingTop: 40 },
   emptyTitle: { ...typeScale.labelMono, color: colors.onSurface, letterSpacing: 2, marginBottom: 8 },
   emptyText: { ...typeScale.bodySm, color: colors.onSurfaceVariant, maxWidth: 320 },
+  suggestions: { marginTop: 28 },
+  suggestTitle: {
+    ...typeScale.labelMono,
+    color: colors.onSurface,
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
 });
