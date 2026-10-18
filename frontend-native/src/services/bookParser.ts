@@ -10,6 +10,8 @@ import type { BookPage, Chapter } from '../types/books';
 
 export const WORDS_PER_PAGE = 220;
 const HEADING_RE = /^\s*(CHAPTER|PART|BOOK|LETTER|EPILOGUE|PROLOGUE)\s+([IVXLCDM]+|\d+)\b.*$/i;
+const GUTENBERG_START_MARKER = /\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[^\n]*\*\*\*/i;
+const GUTENBERG_END_MARKER = /\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[^\n]*\*\*\*/i;
 
 export interface RawChapter {
   title: string;
@@ -19,15 +21,28 @@ export interface RawChapter {
 /** Remove the standard Project Gutenberg header/footer blocks if present. */
 export function stripGutenbergBoilerplate(text: string): string {
   const normalized = text.replace(/\r\n/g, '\n');
-  const startRe = /\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[^\n]*\*\*\*/i;
-  const endRe = /\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[^\n]*\*\*\*/i;
-
-  const startMatch = startRe.exec(normalized);
+  const startMatch = GUTENBERG_START_MARKER.exec(normalized);
   if (!startMatch) return normalized;
 
   const afterStart = normalized.slice(startMatch.index + startMatch[0].length);
-  const endMatch = endRe.exec(afterStart);
+  const endMatch = GUTENBERG_END_MARKER.exec(afterStart);
   return endMatch ? afterStart.slice(0, endMatch.index) : afterStart;
+}
+
+/**
+ * Heading test for an already-trimmed line. Alongside numbered divisions
+ * ("CHAPTER IV"), a bare upper-case line is a title ("STORY OF THE DOOR"),
+ * because running prose is sentence-cased and so never matches. A table of
+ * contents repeats those titles, but every entry is immediately followed by
+ * another heading, so the empty chapter it opens is discarded by `flush`.
+ */
+function isChapterHeading(line: string): boolean {
+  if (!line || line.length > 80) return false;
+  if (HEADING_RE.test(line)) return true;
+  if (/[a-z]/.test(line) || !/[A-Z]/.test(line)) return false;
+  if (/[.!?,;:]\s*$/.test(line)) return false;
+  const words = line.split(/\s+/).filter(Boolean);
+  return words.length >= 2 && words.length <= 12;
 }
 
 /** Split normalized text into chapters on heading lines; fall back to one TEXT chapter. */
@@ -47,7 +62,7 @@ export function splitIntoChapters(raw: string): RawChapter[] {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (HEADING_RE.test(trimmed) && trimmed.length <= 80) {
+    if (isChapterHeading(trimmed)) {
       flush();
       currentTitle = trimmed.toUpperCase();
       current = [];
@@ -172,6 +187,40 @@ function attr(tag: string, name: string): string | null {
 }
 
 /**
+ * Gutenberg keeps its header in the first spine document and its licence in the
+ * last, so the markers only line up when the documents are walked in order.
+ * Sections that fall outside the markers are dropped; a source without markers
+ * is returned untouched.
+ */
+function stripEpubBoilerplate(chapters: RawChapter[]): RawChapter[] {
+  const kept: RawChapter[] = [];
+  let seenStart = false;
+
+  for (const chapter of chapters) {
+    let text = chapter.text;
+
+    if (!seenStart) {
+      const start = GUTENBERG_START_MARKER.exec(text);
+      if (!start) continue;
+      seenStart = true;
+      text = text.slice(start.index + start[0].length);
+    }
+
+    const end = GUTENBERG_END_MARKER.exec(text);
+    if (end) {
+      const body = text.slice(0, end.index).trim();
+      if (body) kept.push({ ...chapter, text: body });
+      return kept;
+    }
+
+    const body = text.trim();
+    if (body) kept.push({ ...chapter, text: body });
+  }
+
+  return seenStart ? kept : chapters;
+}
+
+/**
  * Parse an EPUB: unzip, walk the spine in order, flatten each XHTML document to
  * plain text, then reuse the shared pagination pipeline.
  */
@@ -220,8 +269,9 @@ export async function parseEpub(
     });
   }
 
-  if (rawChapters.length === 0) throw new Error('EPUB_INVALID: no readable spine content');
+  const content = stripEpubBoilerplate(rawChapters);
+  if (content.length === 0) throw new Error('EPUB_INVALID: no readable spine content');
 
-  const pages = paginateChapters(bookId, rawChapters);
+  const pages = paginateChapters(bookId, content);
   return { pages, chapters: buildChapterIndex(pages) };
 }

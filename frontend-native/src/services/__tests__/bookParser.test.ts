@@ -46,6 +46,42 @@ describe('splitIntoChapters', () => {
     expect(chapters).toHaveLength(1);
     expect(chapters[0].title).toBe('TEXT');
   });
+
+  it('splits on bare upper-case title lines', () => {
+    const raw = [
+      'STORY OF THE DOOR',
+      'Mr. Utterson the lawyer was a man of a rugged countenance.',
+      '',
+      'SEARCH FOR MR. HYDE',
+      'That evening Mr. Utterson came home from the office.',
+    ].join('\n');
+    const chapters = splitIntoChapters(raw);
+    expect(chapters.map((c) => c.title)).toEqual(['STORY OF THE DOOR', 'SEARCH FOR MR. HYDE']);
+    expect(chapters[0].text).toContain('rugged countenance');
+  });
+
+  it('ignores a table of contents that repeats the chapter titles', () => {
+    const raw = [
+      'Contents',
+      '',
+      ' STORY OF THE DOOR',
+      '',
+      ' SEARCH FOR MR. HYDE',
+      '',
+      'STORY OF THE DOOR',
+      'Mr. Utterson the lawyer was a man of a rugged countenance.',
+      '',
+      'SEARCH FOR MR. HYDE',
+      'That evening Mr. Utterson came home from the office.',
+    ].join('\n');
+    const chapters = splitIntoChapters(raw);
+    expect(chapters.map((c) => c.title)).toEqual([
+      'TEXT',
+      'STORY OF THE DOOR',
+      'SEARCH FOR MR. HYDE',
+    ]);
+    expect(chapters[0].text).toBe('Contents');
+  });
 });
 
 describe('paginateChapters', () => {
@@ -158,6 +194,38 @@ async function buildEpub(): Promise<Uint8Array> {
   return zip.generateAsync({ type: 'uint8array' });
 }
 
+async function buildGutenbergEpub(): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file(
+    'META-INF/container.xml',
+    '<?xml version="1.0"?><container version="1.0"><rootfiles>' +
+      '<rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>' +
+      '</rootfiles></container>',
+  );
+  zip.file(
+    'OEBPS/content.opf',
+    '<?xml version="1.0"?><package version="2.0"><manifest>' +
+      '<item id="c1" href="front.xhtml" media-type="application/xhtml+xml"/>' +
+      '<item id="c2" href="story.xhtml" media-type="application/xhtml+xml"/>' +
+      '<item id="c3" href="licence.xhtml" media-type="application/xhtml+xml"/>' +
+      '</manifest><spine>' +
+      '<itemref idref="c1"/><itemref idref="c2"/><itemref idref="c3"/>' +
+      '</spine></package>',
+  );
+  zip.file(
+    'OEBPS/front.xhtml',
+    '<html><body><h1>Header</h1><p>HEADER JUNK</p>' +
+      '<p>*** START OF THE PROJECT GUTENBERG EBOOK MOBY DICK ***</p></body></html>',
+  );
+  zip.file('OEBPS/story.xhtml', '<html><body><h1>Loomings</h1><p>Call me Ishmael.</p></body></html>');
+  zip.file(
+    'OEBPS/licence.xhtml',
+    '<html><body><p>*** END OF THE PROJECT GUTENBERG EBOOK MOBY DICK ***</p>' +
+      '<p>LICENCE JUNK</p></body></html>',
+  );
+  return zip.generateAsync({ type: 'uint8array' });
+}
+
 describe('parseEpub', () => {
   it('walks the spine in order and titles chapters from their heading', async () => {
     const result = await parseEpub('b9', await buildEpub());
@@ -168,6 +236,16 @@ describe('parseEpub', () => {
     const allText = result.pages.map((p) => p.text).join(' ');
     expect(allText).toContain('Call me Ishmael.');
     expect(allText).toContain('second part & more.');
+  });
+
+  it('drops the Gutenberg header and licence sections', async () => {
+    const result = await parseEpub('b9', await buildGutenbergEpub());
+    const allText = result.pages.map((p) => p.text).join(' ');
+    expect(allText).toContain('Call me Ishmael.');
+    expect(allText).not.toContain('HEADER JUNK');
+    expect(allText).not.toContain('LICENCE JUNK');
+    expect(allText).not.toContain('PROJECT GUTENBERG');
+    expect(result.chapters.map((c) => c.title)).toEqual(['LOOMINGS']);
   });
 
   it('rejects an archive without a container', async () => {

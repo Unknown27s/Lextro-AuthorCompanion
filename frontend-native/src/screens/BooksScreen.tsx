@@ -105,12 +105,19 @@ export default function BooksScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    bookLibraryService
-      .ensureStarterBook()
-      .catch((err: unknown) => console.warn('[books] Starter book unavailable:', err))
-      .then(() => {
-        if (!cancelled) refresh();
-      });
+    const seed = async () => {
+      try {
+        const book = await bookLibraryService.ensureStarterBook();
+        if (book && book.pageCount === 0) {
+          const parsed = await bookReaderService.load(book);
+          await bookLibraryService.setPageCount(book.id, parsed.pages.length);
+        }
+      } catch (err: unknown) {
+        console.warn('[books] Starter book unavailable:', err);
+      }
+      if (!cancelled) await refresh();
+    };
+    void seed();
     return () => {
       cancelled = true;
     };
