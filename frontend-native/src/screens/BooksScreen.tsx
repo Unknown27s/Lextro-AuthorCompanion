@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import ScreenShell from '../components/ScreenShell';
 import WordDetailModal from '../components/WordDetailModal';
+import { BookCover } from '../components/books/BookCover';
 import { Reader } from '../components/books/Reader';
 import { colors, fonts, spacing, typeScale } from '../theme';
 import { localStorageApi } from '../api/client';
@@ -159,7 +160,11 @@ export default function BooksScreen() {
       const book = await bookLibraryService.importFromPicker();
       if (!book) return;
       const parsed = await bookReaderService.load(book);
-      await bookLibraryService.setPageCount(book.id, parsed.pages.length);
+      const chapterTitle = parsed.chapters[0]?.title?.trim();
+      const titled: Book =
+        /[A-Za-z]/.test(book.title) || !chapterTitle ? book : { ...book, title: chapterTitle };
+      if (titled !== book) await bookLibraryService.upsert(titled);
+      await bookLibraryService.setPageCount(titled.id, parsed.pages.length);
       await refresh();
     });
   }, [refresh, runBusy]);
@@ -345,6 +350,7 @@ export default function BooksScreen() {
           <ScrollView style={styles.resultScroll} keyboardShouldPersistTaps="handled">
             {results.map((result) => (
               <View key={result.id} style={styles.resultRow}>
+                <BookCover uri={result.coverUrl} format={result.format} />
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultTitle} numberOfLines={2}>
                     {result.title}
@@ -401,6 +407,7 @@ export default function BooksScreen() {
                 <Text style={styles.suggestTitle}>POPULAR ON GUTENBERG</Text>
                 {popular.map((result) => (
                   <View key={result.id} style={styles.resultRow}>
+                    <BookCover uri={result.coverUrl} format={result.format} />
                     <View style={styles.resultInfo}>
                       <Text style={styles.resultTitle} numberOfLines={2}>
                         {result.title}
@@ -436,6 +443,7 @@ export default function BooksScreen() {
                 accessibilityLabel={`Open ${book.title}`}
                 activeOpacity={0.85}
               >
+                <BookCover uri={book.coverUrl} format={book.format} />
                 <View style={styles.bookInfo}>
                   <Text style={styles.bookTitle} numberOfLines={2}>
                     {book.title}
