@@ -1,12 +1,13 @@
 /**
- * Book Library — the on-device shelf.
+ * Book Library — the shelf.
  *
- * Owns the book files under `document/LextroBooks/` plus the `library.json`
- * index. Downloading uses `File.downloadFileAsync`; importing uses the
- * built-in `File.pickFileAsync` picker (no extra dependency).
+ * Owns the book files plus the `library.json` index. On native both live under
+ * `document/LextroBooks/`; on web they are served from memory, and books arrive
+ * from the bundled starter title or the browser's own file picker.
  */
 
 import { Platform } from 'react-native';
+import { Asset } from 'expo-asset';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { Book, BookFormat } from '../types/books';
 import type { BookResult } from './bookApi';
@@ -14,34 +15,47 @@ import type { BookResult } from './bookApi';
 const LIBRARY_DIR = 'LextroBooks';
 const INDEX_NAME = 'library.json';
 
-export const BOOKS_UNSUPPORTED_ON_WEB = 'BOOKS_UNSUPPORTED_ON_WEB';
+export const BOOK_NOT_FOUND = 'BOOK_NOT_FOUND';
+export const UNSUPPORTED_BOOK_FORMAT = 'UNSUPPORTED_BOOK_FORMAT';
+export const DOWNLOAD_UNSUPPORTED = 'DOWNLOAD_UNSUPPORTED';
 
-export function isBookLibrarySupported(): boolean {
+// Project Gutenberg and Gutendex answer without CORS headers, so a browser page
+// cannot fetch them at all — the catalogue is native-only by necessity.
+export function isRemoteCatalogueSupported(): boolean {
   return Platform.OS !== 'web';
 }
 
-function assertSupported(): void {
-  if (!isBookLibrarySupported()) throw new Error(BOOKS_UNSUPPORTED_ON_WEB);
+interface StoredFile {
+  fileUri: string;
+  sizeBytes: number;
 }
 
-function libraryDir(): Directory {
-  assertSupported();
-  return new Directory(Paths.document, LIBRARY_DIR);
+interface BookStore {
+  readIndex(): Promise<Book[]>;
+  writeIndex(books: Book[]): Promise<void>;
+  writeFile(fileName: string, content: string | Uint8Array): Promise<StoredFile>;
+  downloadFile(url: string, fileName: string): Promise<StoredFile>;
+  readText(fileUri: string): Promise<string>;
+  readBytes(fileUri: string): Promise<Uint8Array>;
+  deleteFile(fileUri: string): Promise<void>;
 }
 
-function fileAt(uri: string): File {
-  assertSupported();
-  return new File(uri);
+interface PickedBook {
+  fileName: string;
+  format: BookFormat;
+  content: string | Uint8Array;
 }
 
-function indexFile(): File {
-  return new File(libraryDir(), INDEX_NAME);
+interface PickedFileLike {
+  uri: string;
+  text(): Promise<string>;
+  bytes(): Promise<Uint8Array>;
 }
 
-function ensureLibraryDir(): Directory {
-  const dir = libraryDir();
-  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
-  return dir;
+interface BrowserFile {
+  name: string;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
 }
 
 export function detectFormat(nameOrUri: string): BookFormat | null {
@@ -72,25 +86,6 @@ export function hasUnsupportedExtension(nameOrUri: string): boolean {
   return extension !== 'epub' && extension !== 'txt';
 }
 
-// Android's Downloads provider returns a content:// uri holding a numeric
-// document id rather than a file name, so the extension is unreachable here.
-async function readPickedBook(
-  picked: File,
-): Promise<{ format: BookFormat; content: string | Uint8Array }> {
-  const byExtension = detectFormat(picked.uri);
-  if (byExtension) {
-    return {
-      format: byExtension,
-      content: byExtension === 'epub' ? await picked.bytes() : await picked.text(),
-    };
-  }
-  if (hasUnsupportedExtension(picked.uri)) throw new Error('UNSUPPORTED_BOOK_FORMAT');
-  const bytes = await picked.bytes();
-  return detectFormatFromContent(bytes) === 'epub'
-    ? { format: 'epub', content: bytes }
-    : { format: 'txt', content: await picked.text() };
-}
-
 export function fileNameFor(book: Pick<Book, 'id' | 'format'>): string {
   return `${book.id.replace(/[^a-zA-Z0-9._-]/g, '_')}.${book.format}`;
 }
@@ -107,77 +102,227 @@ export function localIdFrom(seed: string): string {
   return `local:${hash.toString(16)}`;
 }
 
-async function readIndex(): Promise<Book[]> {
-  const file = indexFile();
-  if (!file.exists) return [];
-  try {
-    const parsed: unknown = JSON.parse(await file.text());
-    return Array.isArray(parsed) ? (parsed as Book[]) : [];
-  } catch {
-    return [];
+// Android's Downloads provider returns a content:// uri holding a numeric
+// document id rather than a file name, so the extension is unreachable here.
+async function readPickedFile(
+  picked: PickedFileLike,
+): Promise<{ format: BookFormat; content: string | Uint8Array }> {
+  const byExtension = detectFormat(picked.uri);
+  if (byExtension) {
+    return {
+      format: byExtension,
+      content: byExtension === 'epub' ? await picked.bytes() : await picked.text(),
+    };
+  }
+  if (hasUnsupportedExtension(picked.uri)) throw new Error(UNSUPPORTED_BOOK_FORMAT);
+  const bytes = await picked.bytes();
+  return detectFormatFromContent(bytes) === 'epub'
+    ? { format: 'epub', content: bytes }
+    : { format: 'txt', content: await picked.text() };
+}
+
+async function pickOnNative(): Promise<PickedBook | null> {
+  const picked = await File.pickFileAsync({
+    mimeTypes: ['text/plain', 'application/epub+zip'],
+  });
+  if (picked.canceled || !picked.result) return null;
+  const file = picked.result;
+  return { fileName: file.uri, ...(await readPickedFile(file)) };
+}
+
+async function readBrowserFile(file: BrowserFile): Promise<PickedBook> {
+  if (hasUnsupportedExtension(file.name)) throw new Error(UNSUPPORTED_BOOK_FORMAT);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const format = detectFormat(file.name) ?? detectFormatFromContent(bytes) ?? 'txt';
+  return {
+    fileName: file.name,
+    format,
+    content: format === 'epub' ? bytes : await file.text(),
+  };
+}
+
+function pickOnWeb(): Promise<PickedBook | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.epub,.txt,text/plain,application/epub+zip';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      readBrowserFile(file).then(resolve, reject);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
+class NativeBookStore implements BookStore {
+  private libraryDir(): Directory {
+    return new Directory(Paths.document, LIBRARY_DIR);
+  }
+
+  private ensureLibraryDir(): Directory {
+    const dir = this.libraryDir();
+    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+    return dir;
+  }
+
+  private indexFile(): File {
+    return new File(this.libraryDir(), INDEX_NAME);
+  }
+
+  async readIndex(): Promise<Book[]> {
+    const file = this.indexFile();
+    if (!file.exists) return [];
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      return Array.isArray(parsed) ? (parsed as Book[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async writeIndex(books: Book[]): Promise<void> {
+    this.ensureLibraryDir();
+    this.indexFile().write(JSON.stringify(books));
+  }
+
+  async writeFile(fileName: string, content: string | Uint8Array): Promise<StoredFile> {
+    const file = new File(this.ensureLibraryDir(), fileName);
+    file.write(content);
+    return { fileUri: file.uri, sizeBytes: byteLengthOf(content) };
+  }
+
+  async downloadFile(url: string, fileName: string): Promise<StoredFile> {
+    const target = new File(this.ensureLibraryDir(), fileName);
+    if (target.exists) target.delete();
+    const downloaded = await File.downloadFileAsync(url, target, { idempotent: true });
+    return { fileUri: downloaded.uri, sizeBytes: downloaded.size || 0 };
+  }
+
+  async readText(fileUri: string): Promise<string> {
+    return new File(fileUri).text();
+  }
+
+  async readBytes(fileUri: string): Promise<Uint8Array> {
+    return new File(fileUri).bytes();
+  }
+
+  async deleteFile(fileUri: string): Promise<void> {
+    const file = new File(fileUri);
+    if (file.exists) file.delete();
   }
 }
 
-async function writeIndex(books: Book[]): Promise<void> {
-  ensureLibraryDir();
-  indexFile().write(JSON.stringify(books));
+class BrowserBookStore implements BookStore {
+  private index: Book[] = [];
+  private files = new Map<string, string | Uint8Array>();
+
+  async readIndex(): Promise<Book[]> {
+    return [...this.index];
+  }
+
+  async writeIndex(books: Book[]): Promise<void> {
+    this.index = [...books];
+  }
+
+  async writeFile(fileName: string, content: string | Uint8Array): Promise<StoredFile> {
+    const fileUri = `memory://${fileName}`;
+    this.files.set(fileUri, content);
+    return { fileUri, sizeBytes: byteLengthOf(content) };
+  }
+
+  downloadFile(): Promise<StoredFile> {
+    return Promise.reject(new Error(DOWNLOAD_UNSUPPORTED));
+  }
+
+  async readText(fileUri: string): Promise<string> {
+    const content = this.contentAt(fileUri);
+    return typeof content === 'string' ? content : new TextDecoder().decode(content);
+  }
+
+  async readBytes(fileUri: string): Promise<Uint8Array> {
+    const content = this.contentAt(fileUri);
+    return typeof content === 'string' ? new TextEncoder().encode(content) : content;
+  }
+
+  async deleteFile(fileUri: string): Promise<void> {
+    this.files.delete(fileUri);
+  }
+
+  private contentAt(fileUri: string): string | Uint8Array {
+    const content = this.files.get(fileUri);
+    if (!content) throw new Error(BOOK_NOT_FOUND);
+    return content;
+  }
+}
+
+const store: BookStore = Platform.OS === 'web' ? new BrowserBookStore() : new NativeBookStore();
+
+const STARTER_BOOK_ID = 'gutenberg:43';
+const STARTER_TEXT_ASSET = require('../../assets/books/jekyll-and-hyde.txt');
+const STARTER_COVER_ASSET = require('../../assets/books/jekyll-and-hyde-cover.jpg');
+
+async function resolveAssetUri(moduleId: number): Promise<string> {
+  const asset = Asset.fromModule(moduleId);
+  await asset.downloadAsync();
+  return asset.localUri ?? asset.uri;
+}
+
+async function readAssetText(moduleId: number): Promise<string> {
+  const asset = Asset.fromModule(moduleId);
+  await asset.downloadAsync();
+  const uri = asset.localUri ?? asset.uri;
+  if (Platform.OS !== 'web') return new File(uri).text();
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error(`BOOK_ASSET_${response.status}`);
+  return response.text();
 }
 
 class BookLibraryService {
   async list(): Promise<Book[]> {
-    const books = await readIndex();
+    const books = await store.readIndex();
     return [...books].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
   }
 
   async get(bookId: string): Promise<Book | null> {
-    return (await readIndex()).find((book) => book.id === bookId) ?? null;
+    return (await store.readIndex()).find((book) => book.id === bookId) ?? null;
   }
 
   async upsert(book: Book): Promise<void> {
-    const books = await readIndex();
+    const books = await store.readIndex();
     const at = books.findIndex((existing) => existing.id === book.id);
     if (at >= 0) books[at] = book;
     else books.push(book);
-    await writeIndex(books);
+    await store.writeIndex(books);
   }
 
   async setPageCount(bookId: string, pageCount: number): Promise<void> {
-    const books = await readIndex();
-    const at = books.findIndex((book) => book.id === bookId);
+    const books = await store.readIndex();
+    const at = books.findIndex((existing) => existing.id === bookId);
     if (at < 0) return;
     books[at] = { ...books[at], pageCount };
-    await writeIndex(books);
+    await store.writeIndex(books);
   }
 
   async remove(bookId: string): Promise<void> {
-    const books = await readIndex();
+    const books = await store.readIndex();
     const book = books.find((existing) => existing.id === bookId);
-    if (book?.fileUri) {
-      const file = fileAt(book.fileUri);
-      if (file.exists) file.delete();
-    }
-    await writeIndex(books.filter((existing) => existing.id !== bookId));
+    if (book?.fileUri) await store.deleteFile(book.fileUri);
+    await store.writeIndex(books.filter((existing) => existing.id !== bookId));
   }
 
   async save(book: Book, content: string | Uint8Array): Promise<Book> {
-    const file = new File(ensureLibraryDir(), fileNameFor(book));
-    file.write(content);
-    const stored: Book = {
-      ...book,
-      fileUri: file.uri,
-      sizeBytes: byteLengthOf(content),
-    };
+    const stored: Book = { ...book, ...(await store.writeFile(fileNameFor(book), content)) };
     await this.upsert(stored);
     return stored;
   }
 
   async download(result: BookResult): Promise<Book> {
-    const dir = ensureLibraryDir();
-    const target = new File(dir, fileNameFor({ id: result.id, format: result.format }));
-    if (target.exists) target.delete();
-    const downloaded = await File.downloadFileAsync(result.url, target, { idempotent: true });
-
-    const book: Book = {
+    const draft: Book = {
       id: result.id,
       title: result.title,
       author: result.author,
@@ -185,46 +330,65 @@ class BookLibraryService {
       format: result.format,
       language: result.language,
       coverUrl: result.coverUrl,
-      fileUri: downloaded.uri,
-      sizeBytes: downloaded.size || 0,
+      fileUri: '',
+      sizeBytes: 0,
       pageCount: 0,
       addedAt: new Date().toISOString(),
     };
-    await this.upsert(book);
-    return book;
+    const stored: Book = {
+      ...draft,
+      ...(await store.downloadFile(result.url, fileNameFor(draft))),
+    };
+    await this.upsert(stored);
+    return stored;
   }
 
   async importFromPicker(): Promise<Book | null> {
-    assertSupported();
-    const picked = await File.pickFileAsync({
-      mimeTypes: ['text/plain', 'application/epub+zip'],
-    });
-    if (picked.canceled || !picked.result) return null;
-
-    const pickedFile = picked.result;
-    const { format, content } = await readPickedBook(pickedFile);
+    const picked = Platform.OS === 'web' ? await pickOnWeb() : await pickOnNative();
+    if (!picked) return null;
 
     const draft: Book = {
-      id: localIdFrom(pickedFile.uri),
-      title: titleFromFileName(pickedFile.uri),
+      id: localIdFrom(picked.fileName),
+      title: titleFromFileName(picked.fileName),
       author: 'UNKNOWN',
       source: 'local',
-      format,
+      format: picked.format,
       fileUri: '',
       sizeBytes: 0,
       pageCount: 0,
       addedAt: new Date().toISOString(),
     };
 
-    return this.save(draft, content);
+    return this.save(draft, picked.content);
+  }
+
+  async ensureStarterBook(): Promise<Book | null> {
+    const existing = await this.get(STARTER_BOOK_ID);
+    if (existing) return existing;
+
+    const draft: Book = {
+      id: STARTER_BOOK_ID,
+      title: 'The Strange Case of Dr. Jekyll and Mr. Hyde',
+      author: 'Robert Louis Stevenson',
+      source: 'gutenberg',
+      format: 'txt',
+      language: 'en',
+      coverUrl: await resolveAssetUri(STARTER_COVER_ASSET),
+      fileUri: '',
+      sizeBytes: 0,
+      pageCount: 0,
+      addedAt: new Date().toISOString(),
+    };
+
+    return this.save(draft, await readAssetText(STARTER_TEXT_ASSET));
   }
 
   async readText(book: Book): Promise<string> {
-    return fileAt(book.fileUri).text();
+    return store.readText(book.fileUri);
   }
 
   async readBytes(book: Book): Promise<Uint8Array> {
-    return fileAt(book.fileUri).bytes();
+    return store.readBytes(book.fileUri);
   }
 }
 

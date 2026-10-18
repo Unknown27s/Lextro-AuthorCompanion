@@ -25,7 +25,7 @@ import { colors, fonts, spacing, typeScale } from '../theme';
 import { localStorageApi } from '../api/client';
 import { sqliteService } from '../services/sqliteService';
 import { bookmarkService } from '../services/bookmarkService';
-import { bookLibraryService, isBookLibrarySupported } from '../services/bookLibraryService';
+import { bookLibraryService, isRemoteCatalogueSupported } from '../services/bookLibraryService';
 import { bookReaderService } from '../services/bookReaderService';
 import { popularGutendex, searchGutendex } from '../services/bookApi';
 import type { BookResult } from '../services/bookApi';
@@ -97,19 +97,27 @@ export default function BooksScreen() {
   const [detailWord, setDetailWord] = useState<VocabItemType | null>(null);
   const [activeWord, setActiveWord] = useState<string | null>(null);
 
-  const librarySupported = isBookLibrarySupported();
+  const catalogueSupported = isRemoteCatalogueSupported();
 
   const refresh = useCallback(async () => {
-    if (!isBookLibrarySupported()) return;
     setBooks(await bookLibraryService.list());
   }, []);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    bookLibraryService
+      .ensureStarterBook()
+      .catch((err: unknown) => console.warn('[books] Starter book unavailable:', err))
+      .then(() => {
+        if (!cancelled) refresh();
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   useEffect(() => {
-    if (!librarySupported) return;
+    if (!catalogueSupported) return;
     let cancelled = false;
     popularGutendex(1)
       .then((results) => {
@@ -121,7 +129,7 @@ export default function BooksScreen() {
     return () => {
       cancelled = true;
     };
-  }, [librarySupported]);
+  }, [catalogueSupported]);
 
   const shelf = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -230,24 +238,6 @@ export default function BooksScreen() {
     [detailWord],
   );
 
-  if (!librarySupported) {
-    return (
-      <ScreenShell>
-        <View style={styles.topBar}>
-          <Text style={styles.topBarLabel}>[BOOKS]</Text>
-          <Text style={styles.topBarTitle}>READING ROOM</Text>
-        </View>
-        <View style={styles.unsupported}>
-          <Text style={styles.unsupportedTitle}>DESKTOP PREVIEW</Text>
-          <Text style={styles.unsupportedBody}>
-            The reading room keeps its books on the device. Downloading, importing and reading
-            work in the Lextro app on Android and iOS.
-          </Text>
-        </View>
-      </ScreenShell>
-    );
-  }
-
   if (openBook) {
     return (
       <React.Fragment>
@@ -303,17 +293,26 @@ export default function BooksScreen() {
         >
           <Text style={styles.primaryBtnText}>＋ IMPORT</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setDiscoverOpen((open) => !open)}
-          style={[styles.outlineBtn, discoverOpen && styles.outlineBtnActive]}
-          accessibilityLabel="Browse the catalogue"
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.outlineBtnText, discoverOpen && styles.outlineBtnTextActive]}>
-            ⌕ CATALOGUE
-          </Text>
-        </TouchableOpacity>
+        {catalogueSupported && (
+          <TouchableOpacity
+            onPress={() => setDiscoverOpen((open) => !open)}
+            style={[styles.outlineBtn, discoverOpen && styles.outlineBtnActive]}
+            accessibilityLabel="Browse the catalogue"
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.outlineBtnText, discoverOpen && styles.outlineBtnTextActive]}>
+              ⌕ CATALOGUE
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {!catalogueSupported && (
+        <Text style={styles.previewNote}>
+          PREVIEW — IMPORT A FILE TO READ HERE; IMPORTS CLEAR ON RELOAD. THE CATALOGUE NEEDS THE
+          APP.
+        </Text>
+      )}
 
       {busy && (
         <View style={styles.statusRow}>
@@ -602,14 +601,13 @@ const styles = StyleSheet.create({
   bookRight: { alignItems: 'flex-end', gap: 6, minWidth: 56 },
   continueTag: { ...typeScale.specimenIndex, color: colors.secondary },
   newTag: { ...typeScale.specimenIndex, color: colors.onSurfaceVariant },
-  unsupported: { paddingHorizontal: spacing.gutter, paddingTop: 40 },
-  unsupportedTitle: {
-    ...typeScale.labelMono,
-    color: colors.onSurface,
-    letterSpacing: 2,
-    marginBottom: 8,
+  previewNote: {
+    ...typeScale.specimenIndex,
+    color: colors.onSurfaceVariant,
+    paddingHorizontal: spacing.gutter,
+    paddingTop: 10,
+    maxWidth: 420,
   },
-  unsupportedBody: { ...typeScale.bodySm, color: colors.onSurfaceVariant, maxWidth: 340 },
   empty: { paddingTop: 40 },
   emptyTitle: { ...typeScale.labelMono, color: colors.onSurface, letterSpacing: 2, marginBottom: 8 },
   emptyText: { ...typeScale.bodySm, color: colors.onSurfaceVariant, maxWidth: 320 },

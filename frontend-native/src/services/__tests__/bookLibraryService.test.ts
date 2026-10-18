@@ -5,6 +5,16 @@ interface FakeFsState {
   failDownload: boolean;
 }
 
+jest.mock('expo-asset', () => ({
+  Asset: {
+    fromModule: () => ({
+      downloadAsync: async () => undefined,
+      uri: '',
+      localUri: null,
+    }),
+  },
+}));
+
 jest.mock('expo-file-system', () => {
   const state: FakeFsState = {
     store: new Map(),
