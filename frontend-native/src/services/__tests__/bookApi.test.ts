@@ -1,4 +1,4 @@
-import { resolveFormat, toBookResult } from '../bookApi';
+import { resolveFormat, toBookResult, popularGutendex } from '../bookApi';
 
 describe('resolveFormat', () => {
   it('prefers EPUB over plain text', () => {
@@ -45,5 +45,58 @@ describe('toBookResult', () => {
 
   it('returns null when no readable format exists', () => {
     expect(toBookResult({ id: 1, title: 'X', formats: { 'text/html': 'http://x' } })).toBeNull();
+  });
+});
+
+describe('popularGutendex', () => {
+  const originalFetch = globalThis.fetch;
+
+  const stubFetch = (payload: unknown, ok = true) => {
+    const mock = jest
+      .fn()
+      .mockResolvedValue({ ok, status: ok ? 200 : 503, json: async () => payload });
+    globalThis.fetch = mock as unknown as typeof fetch;
+    return mock;
+  };
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('relies on the default most-downloaded ordering instead of a sort param', async () => {
+    const mock = stubFetch({ results: [] });
+    await popularGutendex(2);
+    const url = String(mock.mock.calls[0][0]);
+    expect(url).toContain('page=2');
+    expect(url).not.toContain('sort=');
+  });
+
+  it('maps readable results and drops unreadable ones', async () => {
+    stubFetch({
+      results: [
+        {
+          id: 1342,
+          title: 'Pride and Prejudice',
+          authors: [{ name: 'Austen, Jane' }],
+          download_count: 190246,
+          formats: { 'application/epub+zip': 'http://x/1342.epub' },
+        },
+        { id: 9, title: 'No Readable Format', formats: { 'text/html': 'http://x/9.html' } },
+      ],
+    });
+
+    const results = await popularGutendex();
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      id: 'gutenberg:1342',
+      format: 'epub',
+      downloadCount: 190246,
+    });
+  });
+
+  it('throws a coded error when the catalogue rejects the request', async () => {
+    stubFetch({}, false);
+    await expect(popularGutendex()).rejects.toThrow('GUTENDEX_503');
   });
 });

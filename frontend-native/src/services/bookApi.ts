@@ -74,7 +74,9 @@ export function browseGutendex(topic: string, page = 1): Promise<BookResult[]> {
   return fetchResults(`${GUTENDEX_BASE}?${params.toString()}`);
 }
 
+// Gutendex already returns most-downloaded first; explicit sort params either
+// hang the request or return zero-download records.
 export function popularGutendex(page = 1): Promise<BookResult[]> {
-  const params = new URLSearchParams({ sort: 'popular', page: String(page) });
+  const params = new URLSearchParams({ page: String(page) });
   return fetchResults(`${GUTENDEX_BASE}?${params.toString()}`);
 }
