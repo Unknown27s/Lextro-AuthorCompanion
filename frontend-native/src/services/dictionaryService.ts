@@ -5,6 +5,7 @@
  * instead of relying on browser global. All dictionary logic is identical.
  */
 
+import { Platform } from 'react-native';
 import { wordLoadingService } from './wordLoadingService';
 import { responsiveService } from './responsiveService';
 
@@ -81,7 +82,9 @@ class DictionaryService {
 
 export const dictionaryService = new DictionaryService();
 
-// Auto-initialize
-if (typeof window !== 'undefined') {
+// Web only: warm the in-memory dictionary ahead of time. On native it is a lazy
+// fallback behind the prebuilt SQLite backend, so eager-loading it here would
+// parse ~110k entries during startup and stall the JS thread.
+if (Platform.OS === 'web') {
   dictionaryService.initialize().catch(console.error);
 }

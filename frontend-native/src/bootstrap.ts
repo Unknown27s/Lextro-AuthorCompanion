@@ -1,7 +1,6 @@
 import { logger } from './utils/logger';
 import { ErrorCodes, safeAsync } from './utils/errors';
 import { hydrateStorage } from './utils/storage';
-import { dictionaryService } from './services/dictionaryService';
 import { wordLoadingService } from './services/wordLoadingService';
 import { sqliteService } from './services/sqliteService';
 import { localStorageApi } from './api/client';
@@ -17,19 +16,6 @@ export interface BootstrapResult {
 }
 
 const TAG = 'bootstrap';
-
-async function initDictionary(): Promise<boolean> {
-  try {
-    await safeAsync(() => dictionaryService.initialize(), {
-      code: ErrorCodes.DictionaryLoad,
-      message: 'Dictionary initialization failed',
-    });
-    return true;
-  } catch (error) {
-    logger.error(TAG, 'Dictionary init failed', error);
-    return false;
-  }
-}
 
 function restoreAuthSession(): boolean {
   try {
@@ -77,8 +63,9 @@ export async function bootstrap(): Promise<BootstrapResult> {
 export async function warmup(): Promise<BootstrapResult> {
   logger.info(TAG, 'Starting warmup...');
 
-  const dictionaryReady = await initDictionary();
-
+  // SQLite is the runtime search backend (prebuilt on native), so it warms up
+  // cheaply. The 110k in-memory dictionary is deliberately NOT parsed here: it
+  // is a lazy fallback loaded on first use, never on the startup path.
   let sqliteReady = false;
   try {
     const savedItems = localStorageApi.getUserVocab();
@@ -96,13 +83,13 @@ export async function warmup(): Promise<BootstrapResult> {
   const sessionRestored = authService.getCurrentUser() !== null;
 
   logger.info(TAG, 'Warmup complete', {
-    dictionaryReady,
+    dictionaryReady: false,
     sessionRestored,
     sqliteReady,
   } satisfies BootstrapResult);
 
   return {
-    dictionaryReady,
+    dictionaryReady: false,
     sessionRestored,
     sqliteReady,
   };
