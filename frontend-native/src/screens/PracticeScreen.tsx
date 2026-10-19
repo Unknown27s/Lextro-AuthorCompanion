@@ -144,17 +144,20 @@ export default function PracticeScreen() {
     advanceTimer.current = setTimeout(advance, delay);
   };
 
-  // Speed round countdown
+  // Speed round countdown — one interval for the whole round. Depending on
+  // `timeLeft` here tore the interval down and rebuilt it every second.
   useEffect(() => {
     if (mode !== 'speed' || view !== 'session') return;
-    if (timeLeft <= 0) {
-      endSession();
-      return;
-    }
     const id = setInterval(() => {
-      setTimeLeft((t) => (t > 0 ? t - 1 : t));
+      setTimeLeft((t) => (t > 0 ? t - 1 : 0));
     }, 1000);
     return () => clearInterval(id);
+  }, [mode, view]);
+
+  useEffect(() => {
+    if (mode === 'speed' && view === 'session' && timeLeft <= 0) {
+      endSession();
+    }
   }, [mode, view, timeLeft, endSession]);
 
   const backToModes = () => {
