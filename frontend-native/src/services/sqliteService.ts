@@ -443,6 +443,21 @@ class SqliteService {
     }));
   }
 
+  /** Words whose spelling starts with `prefix` (dictionary "RELATED" chips). */
+  async searchPrefix(prefix: string, limit: number = 10): Promise<string[]> {
+    const db = await this.getDb();
+    if (!db) return [];
+    const normalized = prefix.toLowerCase().trim();
+    if (!normalized) return [];
+    const escaped = normalized.replace(/[%_\\]/g, '\\$&');
+    const rows = await db.getAllAsync<{ word: string }>(
+      `SELECT word FROM words WHERE id LIKE ? ESCAPE '\\' ORDER BY LENGTH(id), id LIMIT ?`,
+      `${escaped}%`,
+      limit,
+    );
+    return rows.map((r) => r.word);
+  }
+
   /** Exact word lookup from SQLite. Returns null when absent. */
   async getWord(word: string): Promise<any | null> {
     const db = await this.getDb();
