@@ -72,34 +72,39 @@ export default function SavedScreen() {
       return;
     }
     let cancelled = false;
-    sqliteService
-      .searchFts(q, 50)
-      .then((rows) => {
-        if (cancelled) return;
-        setDictRows(
-          rows.map((r, i) => ({
-            no: pad(i + 1),
-            item: {
-              id: r.word.toLowerCase(),
-              word: r.word,
-              pos: r.pos || 'word',
-              difficulty: (r.difficulty as VocabItem['difficulty']) || 'medium',
-              definition: r.definition,
-              example_corpus: r.example_corpus,
-              ai_example: r.ai_example,
-              synonyms: r.synonyms,
-              antonyms: r.antonyms,
-              tags: r.tags,
-              created_at: r.created_at,
-            },
-          })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setDictRows([]);
-      });
+    // Debounced: searchFts hits SQLite on every keystroke otherwise, which
+    // queues a fresh FTS query per character while typing.
+    const timer = setTimeout(() => {
+      sqliteService
+        .searchFts(q, 50)
+        .then((rows) => {
+          if (cancelled) return;
+          setDictRows(
+            rows.map((r, i) => ({
+              no: pad(i + 1),
+              item: {
+                id: r.word.toLowerCase(),
+                word: r.word,
+                pos: r.pos || 'word',
+                difficulty: (r.difficulty as VocabItem['difficulty']) || 'medium',
+                definition: r.definition,
+                example_corpus: r.example_corpus,
+                ai_example: r.ai_example,
+                synonyms: r.synonyms,
+                antonyms: r.antonyms,
+                tags: r.tags,
+                created_at: r.created_at,
+              },
+            })),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setDictRows([]);
+        });
+    }, 250);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [query]);
 
