@@ -12,7 +12,7 @@
  */
 
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import { Asset } from 'expo-asset';
 import { inflate } from 'pako';
 import { responsiveService } from './responsiveService';
@@ -27,6 +27,7 @@ interface DictionaryData {
 class WordLoadingService {
   private fullDictionaryData: any[] | null = null;
   private fullIndex: Record<string, number> | null = null;
+  private fullIndexKeys: string[] | null = null;
   private dictionaryAssetUri: string | null = null;
 
   /**
@@ -91,22 +92,10 @@ class WordLoadingService {
 
         this.dictionaryAssetUri = asset.localUri;
 
-        // Read the file content as a binary buffer
-        const fileInfo = await FileSystem.getInfoAsync(asset.localUri);
-        if (!fileInfo.exists) {
-          throw new Error('Dictionary asset file not found');
-        }
-
-        const content = await FileSystem.readAsStringAsync(asset.localUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        // Decode base64 to Uint8Array
-        const binaryString = atob(content);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+        // Read the compressed bytes directly — the previous base64 round-trip
+        // (readAsStringAsync + atob + charCodeAt loop) tripled peak memory and
+        // was the slowest part of the native dictionary load.
+        const bytes = await new File(asset.localUri).bytes();
 
         // Decompress with pako
         const start = Date.now();
@@ -119,6 +108,7 @@ class WordLoadingService {
       const data: DictionaryData = JSON.parse(decompressed);
       this.fullDictionaryData = data.words;
       this.fullIndex = data.index;
+      this.fullIndexKeys = Object.keys(data.index);
 
       console.log(
         `[wordLoading] Dictionary ready: ${data.totalWords} words`,
@@ -132,6 +122,7 @@ class WordLoadingService {
         console.log('[wordLoading] Using cached dictionary');
         this.fullDictionaryData = cached.words;
         this.fullIndex = cached.index;
+        this.fullIndexKeys = null;
       } else {
         throw error;
       }
@@ -207,7 +198,12 @@ class WordLoadingService {
     }
 
     const normalizedPrefix = prefix.toLowerCase();
-    return Object.keys(this.fullIndex!)
+    // Cache the key list once; Object.keys() over 110k entries is far too
+    // expensive to rebuild on every keystroke / word-detail open.
+    if (!this.fullIndexKeys) {
+      this.fullIndexKeys = Object.keys(this.fullIndex!);
+    }
+    return this.fullIndexKeys
       .filter((word) => word.startsWith(normalizedPrefix))
       .slice(0, limit);
   }
@@ -318,6 +314,7 @@ class WordLoadingService {
   async clearCache(): Promise<void> {
     this.fullDictionaryData = null;
     this.fullIndex = null;
+    this.fullIndexKeys = null;
     this.dictionaryAssetUri = null;
     console.log('[wordLoading] Cache cleared');
   }
