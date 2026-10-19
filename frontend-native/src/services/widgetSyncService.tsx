@@ -7,9 +7,7 @@
  */
 
 import { Platform } from 'react-native';
-import { requestWidgetUpdate } from 'react-native-android-widget';
 import { streakService } from './streakService';
-import { StreakWidget } from '../widgets/StreakWidget';
 
 export const WIDGET_NAME = 'Streak';
 
@@ -18,6 +16,11 @@ export async function syncStreakWidget(): Promise<void> {
     return;
   }
   try {
+    // Lazy: Expo Go has no android-widget module, so this must fail at call time.
+    const [{ requestWidgetUpdate }, { StreakWidget }] = await Promise.all([
+      import('react-native-android-widget'),
+      import('../widgets/StreakWidget'),
+    ]);
     await requestWidgetUpdate({
       widgetName: WIDGET_NAME,
       renderWidget: () => <StreakWidget streak={streakService.getStreak()} />,

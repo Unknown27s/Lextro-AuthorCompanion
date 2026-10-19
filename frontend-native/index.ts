@@ -1,14 +1,23 @@
 import { registerRootComponent } from 'expo';
 import { Platform } from 'react-native';
-import { registerWidgetTaskHandler } from 'react-native-android-widget';
 
 import App from './App';
-import { widgetTaskHandler } from './src/widgets/widgetTaskHandler';
 
 // Android-only: registerWidgetTaskHandler calls AppRegistry.registerHeadlessTask,
-// which react-native-web lacks — calling it on web crashes at module load.
+// which react-native-web lacks — calling it on web crashes at module load. The
+// widget module is imported lazily because Expo Go ships no such native module.
 if (Platform.OS === 'android') {
-  registerWidgetTaskHandler(widgetTaskHandler);
+  void (async () => {
+    try {
+      const [{ registerWidgetTaskHandler }, { widgetTaskHandler }] = await Promise.all([
+        import('react-native-android-widget'),
+        import('./src/widgets/widgetTaskHandler'),
+      ]);
+      registerWidgetTaskHandler(widgetTaskHandler);
+    } catch (err) {
+      console.warn('[widget] Widget task handler not registered:', err);
+    }
+  })();
 }
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
