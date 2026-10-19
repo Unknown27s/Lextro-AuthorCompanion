@@ -4,7 +4,7 @@
  * Hairline-framed feed: mono saved-count header, hairline skeletons,
  * black spinners. All loading/pagination/dedupe logic preserved.
  */
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
 import { localStorageApi } from '../api/client';
 import { dictionaryService } from '../services/dictionaryService';
@@ -39,6 +39,14 @@ export default function VocabFeed({
     const [savedWordIds, setSavedWordIds] = useState<Set<string>>(new Set());
     const pageSize = responsiveService.getOptimalPageSize();
     const currentPageRef = useRef(1);
+
+    // Precomputed lookup so renderItem never calls allWords.indexOf (O(n)) per
+    // row — on a long feed that made scrolling O(n²).
+    const wordIndexMap = useMemo(() => {
+        const map = new Map<VocabItem, number>();
+        allWords.forEach((w, i) => map.set(w, i));
+        return map;
+    }, [allWords]);
 
     useEffect(() => {
         loadInitialWords();
@@ -154,7 +162,7 @@ export default function VocabFeed({
         }
     }, [loadingMore, hasMore, allWords, pageSize]);
 
-    const handleToggleSave = (word: VocabItem) => {
+    const handleToggleSave = useCallback((word: VocabItem) => {
         const wordId = `${word.word}-${word.tags?.[0] || 'saved'}`;
         const isSaved = savedWordIds.has(wordId);
 
@@ -177,14 +185,40 @@ export default function VocabFeed({
         if (onWordAdded) {
             onWordAdded();
         }
-    };
+    }, [savedWordIds, onWordAdded]);
 
-    const handleSave = (id: string) => {
-        const word = displayedWords.find((w) => w.id === id);
-        if (word) {
-            handleToggleSave(word);
-        }
-    };
+    const handleSave = useCallback(
+        (id: string) => {
+            const word = displayedWords.find((w) => w.id === id);
+            if (word) {
+                handleToggleSave(word);
+            }
+        },
+        [displayedWords, handleToggleSave],
+    );
+
+    const keyExtractor = useCallback(
+        (item: VocabItem) => item.id || `${item.word}-${item.tags?.[0] || 'word'}`,
+        [],
+    );
+
+    const renderItem = useCallback(
+        ({ item, index }: { item: VocabItem; index: number }) => {
+            const entry = wordIndexMap.get(item);
+            return (
+                <VocabCard
+                    item={item}
+                    entryNumber={entry === undefined ? index : entry}
+                    onSave={handleSave}
+                    onPractice={onPractice}
+                    onUseInDocument={onUseInDocument}
+                    isSaved={savedWordIds.has(item.id || `${item.word}-${item.tags?.[0] || 'word'}`)}
+                    isLoading={false}
+                />
+            );
+        },
+        [wordIndexMap, handleSave, onPractice, onUseInDocument, savedWordIds],
+    );
 
     // Show saved words info header
     const renderHeader = () => {
@@ -247,29 +281,19 @@ export default function VocabFeed({
             {renderLoadingSkeleton()}
             <FlatList
                 data={displayedWords}
-                keyExtractor={(item) => item.id || `${item.word}-${item.tags?.[0] || 'word'}`}
+                keyExtractor={keyExtractor}
                 ListHeaderComponent={
                     <>
                         {listHeader}
                         {renderHeader()}
                     </>
                 }
-                renderItem={({ item, index }) => {
-                    const entry = allWords.indexOf(item);
-                    return (
-                        <VocabCard
-                            item={item}
-                            entryNumber={entry === -1 ? index : entry}
-                            onSave={handleSave}
-                            onPractice={onPractice}
-                            onUseInDocument={onUseInDocument}
-                            isSaved={savedWordIds.has(item.id || `${item.word}-${item.tags?.[0] || 'word'}`)}
-                            isLoading={false}
-                        />
-                    );
-                }}
+                renderItem={renderItem}
                 onEndReached={loadMore}
                 onEndReachedThreshold={0.5}
+                initialNumToRender={pageSize}
+                maxToRenderPerBatch={pageSize}
+                windowSize={7}
                 ListFooterComponent={renderFooter}
                 ListEmptyComponent={renderEmpty}
                 showsVerticalScrollIndicator={false}

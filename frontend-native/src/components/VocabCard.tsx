@@ -4,7 +4,7 @@
  * Spec-sheet card: 1px hairline frame, zero shadows, mono uppercase labels,
  * square buttons, numbered specimen rows. All interactions preserved.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import * as Speech from 'expo-speech';
 import { VocabItem } from '../types';
@@ -37,7 +37,7 @@ const sourceBadgeConfig: Record<NonNullable<VocabCardProps['source']>, { label: 
     online: { label: 'ONLINE' },
 };
 
-export default function VocabCard({
+function VocabCard({
     item,
     entryNumber,
     onSave,
@@ -54,6 +54,14 @@ export default function VocabCard({
     const [showSaveToast, setShowSaveToast] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showSaveMenu, setShowSaveMenu] = useState(false);
+    const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(
+        () => () => {
+            if (toastTimer.current) clearTimeout(toastTimer.current);
+        },
+        [],
+    );
 
     const handleSave = () => {
         setShowSaveMenu(true);
@@ -63,7 +71,8 @@ export default function VocabCard({
         setSaved(!saved);
         onSave(item.id);
         setShowSaveToast(true);
-        setTimeout(() => setShowSaveToast(false), 1500);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setShowSaveToast(false), 1500);
     };
 
     const handlePronounce = () => {
@@ -320,6 +329,8 @@ export default function VocabCard({
         </View>
     );
 }
+
+export default React.memo(VocabCard);
 
 const styles = StyleSheet.create({
     card: {
