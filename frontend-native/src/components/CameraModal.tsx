@@ -396,6 +396,7 @@ export default function CameraModal({ visible, onClose }: CameraModalProps) {
       {detailWord && (
         <WordDetailModal
           item={detailWord}
+          overlay
           isSaved={localStorageApi.getUserVocab().some(
             (v) => v.vocab_item.word.toLowerCase() === detailWord.word.toLowerCase(),
           )}

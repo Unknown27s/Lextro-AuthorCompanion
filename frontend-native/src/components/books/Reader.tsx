@@ -29,12 +29,13 @@ interface ReaderProps {
   onClose: () => void;
   onWordPress: (word: string) => void;
   activeWord?: string | null;
+  overlay?: React.ReactNode;
 }
 
 const MAX_SEARCH_RESULTS = 40;
 const MIN_SEARCH_QUERY = 2;
 
-export function Reader({ book, pages, startPage, onClose, onWordPress, activeWord }: ReaderProps) {
+export function Reader({ book, pages, startPage, onClose, onWordPress, activeWord, overlay }: ReaderProps) {
   const lastPage = Math.max(0, pages.length - 1);
   const [pageIndex, setPageIndex] = useState(() => Math.min(Math.max(0, startPage), lastPage));
   const [panelOpen, setPanelOpen] = useState(false);
@@ -238,6 +239,7 @@ export function Reader({ book, pages, startPage, onClose, onWordPress, activeWor
           </Text>
         </View>
       </SafeAreaView>
+      {overlay}
     </Modal>
   );
 }

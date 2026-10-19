@@ -247,38 +247,39 @@ export default function BooksScreen() {
 
   if (openBook) {
     return (
-      <React.Fragment>
-        <Reader
-          book={openBook.book}
-          pages={openBook.pages}
-          startPage={openBook.startPage}
-          activeWord={activeWord}
-          onWordPress={handleWordPress}
-          onClose={() => {
-            setOpenBook(null);
-            setActiveWord(null);
-            setDetailWord(null);
-            refresh();
-          }}
-        />
-        {detailWord && (
-          <WordDetailModal
-            item={detailWord}
-            isSaved={localStorageApi
-              .getUserVocab()
-              .some(
-                (entry) => entry.vocab_item.word.toLowerCase() === detailWord.word.toLowerCase(),
-              )}
-            onClose={() => {
-              setDetailWord(null);
-              setActiveWord(null);
-            }}
-            onSave={handleSaveWord}
-            onPractice={() => setDetailWord(null)}
-            onUseInDocument={() => setDetailWord(null)}
-          />
-        )}
-      </React.Fragment>
+      <Reader
+        book={openBook.book}
+        pages={openBook.pages}
+        startPage={openBook.startPage}
+        activeWord={activeWord}
+        onWordPress={handleWordPress}
+        onClose={() => {
+          setOpenBook(null);
+          setActiveWord(null);
+          setDetailWord(null);
+          refresh();
+        }}
+        overlay={
+          detailWord ? (
+            <WordDetailModal
+              overlay
+              item={detailWord}
+              isSaved={localStorageApi
+                .getUserVocab()
+                .some(
+                  (entry) => entry.vocab_item.word.toLowerCase() === detailWord.word.toLowerCase(),
+                )}
+              onClose={() => {
+                setDetailWord(null);
+                setActiveWord(null);
+              }}
+              onSave={handleSaveWord}
+              onPractice={() => setDetailWord(null)}
+              onUseInDocument={() => setDetailWord(null)}
+            />
+          ) : null
+        }
+      />
     );
   }
 

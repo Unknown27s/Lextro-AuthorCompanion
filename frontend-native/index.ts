@@ -1,3 +1,8 @@
+// Must be the first import in the app entry: react-native-gesture-handler
+// installs the native gesture responder before any other module loads. On the
+// New Architecture a missing early import leaves touches/gestures unregistered.
+import 'react-native-gesture-handler';
+
 import { registerRootComponent } from 'expo';
 import { Platform } from 'react-native';
 

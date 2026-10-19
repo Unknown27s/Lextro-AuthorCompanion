@@ -19,7 +19,6 @@ import {
 import * as Speech from 'expo-speech';
 import { VocabItem } from '../types';
 import { useResponsive } from '../services/responsiveService';
-import { dictionaryService } from '../services/dictionaryService';
 import { sqliteService } from '../services/sqliteService';
 import { colors, fonts, typeScale, spacing, frame, buttons } from '../theme';
 
@@ -31,6 +30,7 @@ interface WordDetailModalProps {
     onSave: (id: string, item?: VocabItem) => void;
     onPractice?: (id: string) => void;
     onUseInDocument?: (id: string) => void;
+    overlay?: boolean;
 }
 
 const toPosAbbr = (pos: string): string => {
@@ -65,6 +65,7 @@ export default function WordDetailModal({
     onSave,
     onPractice,
     onUseInDocument,
+    overlay = false,
 }: WordDetailModalProps) {
     const { isNarrow } = useResponsive();
     const [displayItem, setDisplayItem] = useState(item);
@@ -76,8 +77,8 @@ export default function WordDetailModal({
         setSaved(isSaved);
         const headword = item.word;
         let cancelled = false;
-        dictionaryService
-            .searchByPrefix(headword, 12)
+        sqliteService
+            .searchPrefix(headword, 12)
             .then((words) => {
                 if (cancelled) return;
                 setSimilarWords(
@@ -140,12 +141,7 @@ export default function WordDetailModal({
     const entryLabel = `[ENTRY. ${String(entryIndex + 1).padStart(4, '0')}]`;
 
     return (
-        <Modal
-            visible
-            transparent={false}
-            animationType="slide"
-            onRequestClose={onClose}
-        >
+        <DetailSurface overlay={overlay} onClose={onClose}>
             <View style={styles.container}>
                 {/* Top bar */}
                 <View style={styles.topBar}>
@@ -340,6 +336,34 @@ export default function WordDetailModal({
                     </TouchableOpacity>
                 </View>
             </View>
+        </DetailSurface>
+    );
+}
+
+// A native <Modal> nested inside another <Modal> opens a second Android dialog
+// that intercepts touches meant for the surface beneath it. Hosts that already
+// sit inside a modal (reader, camera) pass `overlay` so the detail renders as an
+// in-tree absolute layer over the existing dialog instead.
+function DetailSurface({
+    overlay,
+    onClose,
+    children,
+}: {
+    overlay: boolean;
+    onClose: () => void;
+    children: React.ReactNode;
+}) {
+    if (overlay) {
+        return <View style={styles.overlay}>{children}</View>;
+    }
+    return (
+        <Modal
+            visible
+            transparent={false}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            {children}
         </Modal>
     );
 }
@@ -349,6 +373,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.surface,
         paddingTop: 16,
+    },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 10,
+        elevation: 10,
     },
     topBar: {
         flexDirection: 'row',
